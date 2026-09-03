@@ -172,12 +172,16 @@ export function CampProvider({children}: {children: React.ReactNode}) {
   useEffect(() => {
     if (!hydrated || !weeklyGoals.length) return
     const weekStart = mondayISO(currentDate)
-    const stale = weeklyGoals.filter((goal) => goal.weekStart !== weekStart)
+    // Weekly goals belong to a sprint. Only reset goals for the sprint that
+    // is currently being worked on; historical sprint reviews must retain the
+    // values that were recorded when that sprint ran.
+    const stale = weeklyGoals.filter((goal) => goal.sprintId === activeSprintId && goal.weekStart !== weekStart)
     if (!stale.length) return
-    const normalized = weeklyGoals.map((goal) => goal.weekStart === weekStart ? goal : {...goal, weekStart, value: 0})
+    const staleIds = new Set(stale.map((goal) => goal.id))
+    const normalized = weeklyGoals.map((goal) => staleIds.has(goal.id) ? {...goal, weekStart, value: 0} : goal)
     setWeeklyGoals(normalized)
     if (remoteConfigured) void Promise.all(stale.map((goal) => saveWeeklyGoal({...goal, weekStart, value: 0}))).catch(() => { /* reset is best effort until the database is connected */ })
-  }, [currentDate, hydrated, weeklyGoals])
+  }, [activeSprintId, currentDate, hydrated, weeklyGoals])
 
   useEffect(() => {
     const refreshDate = () => setCurrentDate(todayISO())
