@@ -1,0 +1,13 @@
+/* Deliberately separate so the visual system stays stable while the type scale can move. */
+body{font-size:16.8px}
+.side nav button{font-size:16.8px}.side-note{font-size:13.2px}.top h1{font-size:39.6px}
+.eyebrow{font-size:12px}.number strong{font-size:88.8px}.number span{font-size:30px}.number-hero h2{font-size:25.2px}.number-hero>div:first-child>p:last-child,.hero-goal{font-size:14.4px}.arc span{font-size:24px}
+.button{font-size:15.6px}.stat strong{font-size:28.8px}.action-tile{font-size:16.8px}.action-tile b{font-size:24px}
+.insight h3{font-size:26.4px}.lane-top h2{font-size:25.2px}.lane-top small{font-size:13.2px}.streak,.rest-dot{font-size:13.2px}
+.task-copy b{font-size:14.4px}.task-copy small,.task-copy em{font-size:12px}.add-line,.text{font-size:16.8px}.shared-label{font-size:12px}.shared>span:not(.shared-label){font-size:13.2px}
+.section-head h2{font-size:26.4px}.hint,.helper,.muted{font-size:13.2px}.hour-strip small{font-size:12px}.hour-strip p{font-size:12px}
+.page-hero h2{font-size:38.4px}.page-hero>span,.page-hero>p:last-child{font-size:14.4px}.day-col>b{font-size:13.2px}.week-task{font-size:13.2px}.week-task small{font-size:10.8px}
+.cal-hour time{font-size:12px}.cal-block{font-size:14.4px}.cal-block small{font-size:12px}
+.runway-stat strong{font-size:28.8px}.ledger-row{font-size:13.2px}.ledger-row small{font-size:12px}.invoice{font-size:14.4px}.invoice button{font-size:12px}
+.reason-bar,.review-row{font-size:13.2px}.review-row small{font-size:12px}.modal h2{font-size:31.2px}.modal-copy{font-size:14.4px}.reason-list button{font-size:14.4px}
+@media(max-width:680px){.top h1{font-size:34.8px}.number strong{font-size:73.2px}.number span{font-size:24px}.stat strong{font-size:22.8px}.action-tile{font-size:14.4px}.insight h3{font-size:22.8px}.section-head h2{font-size:24px}.page-hero h2{font-size:32.4px}.bottom-nav button{font-size:12px}.ledger-row{font-size:13.2px}}

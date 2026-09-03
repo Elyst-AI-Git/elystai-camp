@@ -1,0 +1,11 @@
+node_modules
+.next
+.env.local
+.env*.local
+*.log
+/work/
+/scratch/
+/notes/
+/outputs/
+/output/
+/.playwright-cli/
