@@ -64,14 +64,16 @@ export function currentStreak(tasks: Task[], restDays: RestDay[], person: Person
 }
 
 export function lifetimeGoodDays(tasks: Task[], restDays: RestDay[], person: Person, today: string): number {
-  const dates = tasks.filter((task) => task.owner === person && task.tier === 'must' && task.day <= today).map((task) => task.day)
-  const first = dates.sort()[0]
-  if (!first) return 0
-  const totalDays = Math.min(3660, Math.max(0, Math.floor((atNoon(today).getTime() - atNoon(first).getTime()) / 86400000) + 1))
+  // Count the actual scheduled Must days rather than walking a capped date
+  // range. This keeps the lifetime counter correct for workspaces older than
+  // ten years and avoids treating unscheduled calendar days as misses.
+  const dates = new Set(tasks
+    .filter((task) => task.owner === person && task.tier === 'must' && task.day <= today)
+    .map((task) => task.day))
   let good = 0
-  for (let index = 0; index < totalDays; index += 1) {
-    if (dayStatus(tasks, restDays, person, addDays(first, index)) === 'all') good += 1
-  }
+  dates.forEach((date) => {
+    if (dayStatus(tasks, restDays, person, date) === 'all') good += 1
+  })
   return good
 }
 
