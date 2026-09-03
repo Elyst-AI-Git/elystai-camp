@@ -39,23 +39,23 @@ export function currentStreak(tasks: Task[], restDays: RestDay[], person: Person
   let evaluated = 0
   let seenScheduledDay = false
   while (evaluated < 366) {
-    const tone = dayStatus(tasks, restDays, person, cursor)
-    if (tone === 'rest') {
+    if (restDays.some((entry) => entry.person === person && entry.date === cursor)) {
       cursor = addDays(cursor, -1)
       evaluated += 1
       continue
     }
+    const musts = mustsForPerson(tasks, person, cursor)
     // An unscheduled day before the first scheduled day is simply outside the
     // streak window. Once work has been scheduled, an empty day is a genuine
     // miss and correctly breaks the count.
-    if (tone === 'empty') {
+    if (!musts.length) {
       if (seenScheduledDay) break
       cursor = addDays(cursor, -1)
       evaluated += 1
       continue
     }
     seenScheduledDay = true
-    if (tone !== 'all') break
+    if (musts.some((task) => task.status !== 'done')) break
     streak += 1
     cursor = addDays(cursor, -1)
     evaluated += 1
@@ -82,7 +82,7 @@ export function characterState({tasks, restDays, metrics, invoices, sprint, pers
   const sprintCalls = sprint ? metrics.filter((metric) => metric.sprintId === sprint.id && metric.key === 'calls_booked').reduce((sum, metric) => sum + metric.value, 0) : 0
   const callLoggedToday = Boolean(sprint && metrics.some((metric) => metric.sprintId === sprint.id && metric.key === 'calls_booked' && metric.date.slice(0, 10) === today))
   const targetReachedToday = Boolean(sprint && sprint.targetCalls > 0 && sprintCalls >= sprint.targetCalls && callLoggedToday)
-  const invoiceReceivedToday = invoices.some((invoice) => invoice.status === 'received' && invoice.receivedDate?.slice(0, 10) === today)
+  const invoiceReceivedToday = invoices.some((invoice) => (invoice.status === 'received' || invoice.status === 'paid') && invoice.receivedDate?.slice(0, 10) === today)
   const celebrationToday = callLoggedToday || targetReachedToday || invoiceReceivedToday
   if (celebrationToday) return 'celebrating'
   if (restDays.some((entry) => entry.person === person && entry.date === today)) return 'resting'
