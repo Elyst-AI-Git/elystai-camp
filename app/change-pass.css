@@ -197,6 +197,7 @@
 
 /* The finance summary stays compact; runway gets its own readable horizontal lane. */
 .finance-metrics{grid-template-columns:repeat(5,minmax(0,1fr))}
+.finance-grid.lower{grid-template-columns:1fr}
 .finance-metric{display:flex;flex-direction:column;justify-content:space-between;min-height:148px}
 .finance-metrics .finance-metric .eyebrow{color:rgba(255,255,255,.94);text-shadow:0 1px 2px rgba(26,26,26,.16)}
 .finance-metric strong{margin-top:auto}
