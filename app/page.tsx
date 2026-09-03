@@ -97,8 +97,10 @@ function Today() {
   const sprintEnd = new Date(`${sprint.endDate}T12:00:00`)
   const daysLeft = Number.isNaN(sprintEnd.getTime()) ? 0 : Math.max(0, Math.floor((sprintEnd.getTime() - date.getTime()) / 86400000))
   const overdue = invoices.find((invoice) => daysOverdue(invoice) >= 14)
-  const blocked = tasks.find((task) => task.status === 'blocked' && Math.floor((new Date(`${currentDate}T12:00:00`).getTime() - new Date(`${task.day}T12:00:00`).getTime()) / 86400000) > 2)
-  const waiting = tasks.find((task) => task.status === 'waiting' && Math.floor((new Date(`${currentDate}T12:00:00`).getTime() - new Date(`${task.day}T12:00:00`).getTime()) / 86400000) > 3)
+  // Insights belong to the active sprint; an old carried task should not
+  // interrupt today's prompt after the sprint has changed.
+  const blocked = weeklyTasks.find((task) => task.status === 'blocked' && Math.floor((new Date(`${currentDate}T12:00:00`).getTime() - new Date(`${task.day}T12:00:00`).getTime()) / 86400000) > 2)
+  const waiting = weeklyTasks.find((task) => task.status === 'waiting' && Math.floor((new Date(`${currentDate}T12:00:00`).getTime() - new Date(`${task.day}T12:00:00`).getTime()) / 86400000) > 3)
   const runway = runwayWeeks(transactions, settings)
   const insight: [string, string, string] = runway !== null && runway < 8 ? ['coral', 'Runway is under 8 weeks. Review spend.', 'Review spend'] : overdue ? ['coral', `${overdue.party} is ${daysOverdue(overdue)} days overdue. Chase it.`, 'Open invoices'] : daysLeft <= 3 && calls === 0 ? ['coral', `${daysLeft} days left and no calls booked. Change the week.`, 'Change the week'] : completionRate > .8 && calls === 0 ? ['butter', `You’ve closed ${Math.round(completionRate * 100)}% of tasks and booked no calls this week.`, 'Change the week'] : blocked ? ['butter', `Blocked work needs a next step. Ask ${blocked.waitingOn || 'for help'}.`, 'Check handoff'] : waiting ? ['butter', `${waiting.waitingOn || 'A reply'} has been waiting ${Math.max(1, Math.floor((new Date(`${currentDate}T12:00:00`).getTime() - new Date(`${waiting.day}T12:00:00`).getTime()) / 86400000))} days.`, 'Check handoff'] : ['mint', 'On track. Keep the next Must clear.', 'Keep moving']
   const insightTarget = insight[2] === 'Open invoices' || insight[2] === 'Review spend' ? 'Money' : 'Today'
