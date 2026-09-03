@@ -32,6 +32,7 @@ type CampState = {
   setActiveSprint: (id: string) => Promise<{error: string | null}>
   addSprint: (sprint: Sprint) => Promise<{error: string | null}>
   currentPerson: Person
+  previewPerson: Person
   currentDate: string
   isRemoteConfigured: boolean
   authStatus: 'local' | 'loading' | 'signed-in' | 'signed-out' | 'error'
@@ -104,6 +105,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
   const [settings, setSettings] = useState<Settings>(seedSettings)
   const [activeSprintId, setActiveSprintId] = useState('s1')
   const [currentPerson, setCurrentPerson] = useState<Person>('nihal')
+  const [previewPerson, setPreviewPersonState] = useState<Person>('nihal')
   const [currentDate, setCurrentDate] = useState(() => todayISO())
   const [view, setView] = useState('Today')
   const [review, setReviewText] = useState('')
@@ -130,7 +132,10 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         const storedActiveSprint = readStored('active-sprint', 's1')
         if (typeof storedActiveSprint === 'string' && storedActiveSprint) setActiveSprintId(storedActiveSprint)
         const storedPreviewPerson = readStored<string>('preview-person', 'nihal')
-        if (storedPreviewPerson === 'shirin' || storedPreviewPerson === 'nihal') setCurrentPerson(storedPreviewPerson)
+        if (storedPreviewPerson === 'shirin' || storedPreviewPerson === 'nihal') {
+          setPreviewPersonState(storedPreviewPerson)
+          setCurrentPerson(storedPreviewPerson)
+        }
         setSettings(readStored('settings', seedSettings))
         setReviewText(readStored('review', ''))
         setHydrated(true)
@@ -215,6 +220,12 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     return () => { alive = false; authData.subscription.unsubscribe() }
   }, [])
 
+  // A signed-in person is the actor recorded on writes; the preview person is
+  // only the lane/profile currently expanded in the shared workspace.
+  useEffect(() => {
+    if (remoteConfigured) setPreviewPersonState(currentPerson)
+  }, [currentPerson])
+
   useEffect(() => {
     if (!hydrated || remoteConfigured) return
     const save = <T,>(key: string, value: T) => {
@@ -232,10 +243,10 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     save('weekly-goals', weeklyGoals)
     save('sprints', sprints)
     save('active-sprint', activeSprintId)
-    save('preview-person', currentPerson)
+    save('preview-person', previewPerson)
     save('settings', settings)
     save('review', review)
-  }, [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, sprints, settings, activeSprintId, currentPerson, review, hydrated])
+  }, [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, sprints, settings, activeSprintId, currentPerson, previewPerson, review, hydrated])
 
   useEffect(() => {
     const supabase = createAnonClient()
@@ -304,6 +315,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       return {error: null}
     },
     currentPerson,
+    previewPerson,
     currentDate,
     isRemoteConfigured: remoteConfigured,
     authStatus,
@@ -312,6 +324,10 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     view,
     setView,
     setPreviewPerson: (person) => {
+      setPreviewPersonState(person)
+      // Local preview has no authenticated actor, so keep the profile switch
+      // behaviour users expect there. Remote mode keeps actor and preview
+      // separate so completed_by/logged_by remain truthful.
       if (!remoteConfigured) setCurrentPerson(person)
     },
     logout: async () => {
@@ -583,7 +599,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       return {error: null}
     },
     setReview: (valueToSave) => setReviewText(valueToSave),
-  }), [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, sprints, settings, activeSprintId, currentPerson, currentDate, view, authStatus, isLoading, loadError])
+  }), [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, sprints, settings, activeSprintId, currentPerson, previewPerson, currentDate, view, authStatus, isLoading, loadError])
 
   return <CampContext.Provider value={value}>{children}</CampContext.Provider>
 }
