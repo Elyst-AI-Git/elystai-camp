@@ -228,7 +228,7 @@
 .logo-main{display:flex;align-items:center;gap:11px}
 .logo-main img{width:38px;height:38px;border-radius:11px}
 .logo-main span{font-size:38px;line-height:1}
-.logo-by{display:flex;align-items:center;gap:6px;padding-left:49px;color:#bdb9b2;font-size:13px;font-weight:800}
+.logo-by{display:flex;align-items:center;gap:3px;padding-left:49px;color:#bdb9b2;font-size:13px;font-weight:800}
 .logo-by img{display:block;width:76px;height:25px;object-fit:cover;object-position:center;filter:none}
 
 .review-content-breakdown .content-person:first-child{background:var(--sky)}
@@ -249,7 +249,7 @@
 .login-lockup-main{display:flex;align-items:center;gap:10px}
 .login-lockup-main img{width:36px;height:36px;border-radius:11px}
 .login-lockup-main span{font:900 36px/1 var(--font-display);letter-spacing:-.08em}
-.login-lockup-by{display:flex;align-items:center;gap:5px;padding-left:46px;color:var(--muted);font-size:12px;font-weight:800}
+.login-lockup-by{display:flex;align-items:center;gap:2px;padding-left:46px;color:var(--muted);font-size:12px;font-weight:800}
 .login-lockup-by img{display:block;width:68px;height:22px;object-fit:cover;object-position:center;filter:invert(1)}
 .login-card h1{font-size:38px}
 .login-card .button{width:100%;margin-top:4px}
