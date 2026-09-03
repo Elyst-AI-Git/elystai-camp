@@ -34,6 +34,9 @@ type CampState = {
   currentPerson: Person
   currentDate: string
   isRemoteConfigured: boolean
+  authStatus: 'local' | 'loading' | 'signed-in' | 'signed-out' | 'error'
+  isLoading: boolean
+  loadError: string | null
   view: string
   setView: (view: string) => void
   setPreviewPerson: (person: Person) => void
@@ -105,6 +108,9 @@ export function CampProvider({children}: {children: React.ReactNode}) {
   const [view, setView] = useState('Today')
   const [review, setReviewText] = useState('')
   const [hydrated, setHydrated] = useState(false)
+  const [isLoading, setIsLoading] = useState(remoteConfigured)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [authStatus, setAuthStatus] = useState<CampState['authStatus']>(remoteConfigured ? 'loading' : 'local')
 
   useEffect(() => {
     let alive = true
@@ -128,10 +134,13 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         setSettings(readStored('settings', seedSettings))
         setReviewText(readStored('review', ''))
         setHydrated(true)
+        setIsLoading(false)
         return
       }
-      const [remoteTasks, remoteMetrics, remoteSlipReasons, remoteTransactions, remoteInvoices, remoteReimbursements, remoteSettings, remoteBlocks, remoteSprints, remoteDailyHours, remoteRestDays, remoteWeeklyGoals] = await Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchSettings(), fetchCalendarBlocks(), fetchSprints(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals()])
+      const results = await Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchSettings(), fetchCalendarBlocks(), fetchSprints(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals()])
+      const [remoteTasks, remoteMetrics, remoteSlipReasons, remoteTransactions, remoteInvoices, remoteReimbursements, remoteSettings, remoteBlocks, remoteSprints, remoteDailyHours, remoteRestDays, remoteWeeklyGoals] = results
       if (!alive) return
+      if (results.some((result) => result.error)) setLoadError('Some shared data could not load. Check the Supabase setup and try again.')
       if (remoteTasks.data) setTasks(remoteTasks.data)
       if (remoteMetrics.data) setMetrics(remoteMetrics.data)
       if (remoteSlipReasons.data) setSlipReasons(remoteSlipReasons.data)
@@ -149,8 +158,9 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         if (active) setActiveSprintId(active.id)
       }
       setHydrated(true)
+      setIsLoading(false)
     }
-    void hydrate().catch(() => { if (alive) setHydrated(true) })
+    void hydrate().catch(() => { if (alive) { setLoadError('Could not load the shared workspace. Try again.'); setHydrated(true); setIsLoading(false) } })
     return () => { alive = false }
   }, [])
 
@@ -173,14 +183,35 @@ export function CampProvider({children}: {children: React.ReactNode}) {
 
   useEffect(() => {
     const supabase = createAnonClient()
-    if (!supabase) return
+    if (!supabase) { setAuthStatus('local'); return }
     let alive = true
-    const setPersonFromEmail = (email?: string | null) => {
+    const setPersonFromEmail = (email?: string | null): Person | null => {
       const person = personForEmail(email)
       if (alive && person) setCurrentPerson(person)
+      return person
     }
-    void supabase.auth.getUser().then(({data}) => setPersonFromEmail(data.user?.email)).catch(() => { /* auth is optional in the local preview */ })
-    const {data: authData} = supabase.auth.onAuthStateChange((_event, session) => setPersonFromEmail(session?.user?.email))
+    void supabase.auth.getUser().then(({data, error}) => {
+      if (!alive) return
+      if (error) { setAuthStatus('error'); return }
+      if (!data.user) {
+        setAuthStatus('signed-out')
+        const next = `${window.location.pathname}${window.location.search}`
+        window.location.replace(`/login?next=${encodeURIComponent(next || '/')}`)
+        return
+      }
+      if (!setPersonFromEmail(data.user.email)) { setAuthStatus('error'); setLoadError('This account is not enabled for Camp.'); return }
+      setAuthStatus('signed-in')
+    }).catch(() => { if (alive) setAuthStatus('error') })
+    const {data: authData} = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!alive) return
+      if (!session?.user) {
+        setAuthStatus('signed-out')
+        if (window.location.pathname !== '/login') window.location.replace('/login')
+        return
+      }
+      if (!setPersonFromEmail(session.user.email)) { setAuthStatus('error'); setLoadError('This account is not enabled for Camp.'); return }
+      setAuthStatus('signed-in')
+    })
     return () => { alive = false; authData.subscription.unsubscribe() }
   }, [])
 
@@ -211,9 +242,11 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     if (!supabase) return
     let alive = true
     const reload = () => {
-      void Promise.all([fetchTasks(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchCalendarBlocks(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals()]).then(([taskResult, transactionResult, invoiceResult, reimbursementResult, blockResult, dailyHoursResult, restDaysResult, weeklyGoalsResult]) => {
+      void Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchCalendarBlocks(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals()]).then(([taskResult, metricResult, slipReasonResult, transactionResult, invoiceResult, reimbursementResult, blockResult, dailyHoursResult, restDaysResult, weeklyGoalsResult]) => {
         if (!alive) return
         if (taskResult.data) setTasks(taskResult.data)
+        if (metricResult.data) setMetrics(metricResult.data)
+        if (slipReasonResult.data) setSlipReasons(slipReasonResult.data)
         if (transactionResult.data) setTransactions(transactionResult.data)
         if (invoiceResult.data) setInvoices(invoiceResult.data)
         if (reimbursementResult.data) setReimbursements(reimbursementResult.data)
@@ -226,6 +259,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     const channel = supabase
       .channel('camp-live')
       .on('postgres_changes', {event: '*', schema: 'public', table: 'tasks'}, reload)
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'metrics'}, reload)
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'task_slip_reasons'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'transactions'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'invoices'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'reimbursements'}, reload)
@@ -271,6 +306,9 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     currentPerson,
     currentDate,
     isRemoteConfigured: remoteConfigured,
+    authStatus,
+    isLoading,
+    loadError,
     view,
     setView,
     setPreviewPerson: (person) => {
@@ -332,6 +370,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       const result = await removeTask(id)
       if (result.error) return {error: 'Could not delete task'}
       setTasks((items) => items.filter((task) => task.id !== id))
+      setSlipReasons((items) => items.filter((reason) => reason.taskId !== id))
       return {error: null}
     },
     moveTask: async (id, day, slip) => {
@@ -544,7 +583,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       return {error: null}
     },
     setReview: (valueToSave) => setReviewText(valueToSave),
-  }), [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, sprints, settings, activeSprintId, currentPerson, currentDate, view])
+  }), [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, sprints, settings, activeSprintId, currentPerson, currentDate, view, authStatus, isLoading, loadError])
 
   return <CampContext.Provider value={value}>{children}</CampContext.Provider>
 }

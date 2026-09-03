@@ -254,3 +254,60 @@
 .login-card h1{font-size:38px}
 .login-card .button{width:100%;margin-top:4px}
 @media(max-width:820px){.login-page{grid-template-columns:1fr;padding:14px}.login-visual{min-height:42vh;max-height:480px}.login-card{align-self:stretch;width:100%;padding:30px 24px;border-radius:24px}.login-card h1{font-size:32px}}
+
+/* Shared work stays visible without bringing back the removed campfire/handoff panel. */
+.shared-tasks{margin-top:16px;padding:22px 24px;background:rgba(255,255,255,.78);border-radius:24px;box-shadow:var(--shadow)}
+.shared-tasks-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.shared-tasks-head h2{font:900 24px/1 var(--font-display);letter-spacing:-.05em;margin:0 0 7px}
+.shared-tasks-head p:last-child{margin:0;color:var(--muted);font-size:13px}
+.shared-empty{margin:16px 0 0;color:var(--muted);font-size:13px}
+.shared-task-list{display:grid;gap:8px;margin-top:16px}
+.shared-task-list:empty{display:none}
+.shared-add-form{display:grid;grid-template-columns:minmax(0,1.6fr) repeat(3,minmax(110px,1fr)) auto;gap:8px;margin-top:16px}
+.shared-add-form input{min-width:0;border:0;border-radius:10px;background:#fff;padding:11px;outline:2px solid transparent;font-size:13px}
+.shared-add-form input:focus{outline-color:var(--mint)}
+.shared-add-form .button{white-space:nowrap}
+.shared-byline{display:block;margin-top:12px;color:var(--muted);font-size:11px}
+.app-status{min-height:100vh;margin:0!important;width:100%!important;display:grid;place-content:center;padding:32px;background:var(--cream)}
+.app-status h1{font:900 34px/1 var(--font-display);letter-spacing:-.06em;margin:0 0 10px}
+.app-status p:not(.eyebrow){margin:0;color:var(--muted);font-size:14px}
+.app-status small{display:block;margin-top:12px;color:var(--muted);font-size:12px}
+.data-warning{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9;max-width:min(560px,calc(100% - 30px));padding:10px 14px;border-radius:12px;background:var(--butter);color:var(--ink);font-size:12px;font-weight:800;box-shadow:var(--shadow)}
+
+/* The selected lane can breathe; the secondary lane remains readable at 25%. */
+@media(min-width:851px){
+  .lane.secondary .lane-top{gap:8px;padding:10px;min-height:96px}
+  .lane.secondary .character{width:72px;height:72px;border-radius:18px}
+  .lane.secondary .lane-top h2{font-size:17px;line-height:1.05}
+  .lane.secondary .lane-top small{font-size:11px}
+  .lane.secondary .lane-top .eyebrow{font-size:10px}
+  .lane.secondary .lane-meta{display:block;padding-top:12px}
+  .lane.secondary .hours-form{display:grid;gap:8px}
+  .lane.secondary .hours-form .text-button{width:100%;text-align:left}
+  .lane.secondary .rest-toggle{width:100%;margin-top:8px}
+  .lane.secondary .task-row{padding:10px;gap:7px}
+  .lane.secondary .task-copy b{font-size:12px}
+  .lane.secondary .task-copy small,.lane.secondary .task-copy em{font-size:10px}
+  .lane.secondary .avatar{width:28px;height:28px;font-size:9px}
+  .lane.secondary .more{font-size:10px;padding:0}
+}
+@media(max-width:680px){
+  .shared-tasks{padding:19px;border-radius:22px}
+  .shared-tasks-head{display:grid;gap:12px}
+  .shared-tasks-head .button{width:100%}
+  .shared-add-form{grid-template-columns:1fr 1fr}
+  .shared-add-form input{grid-column:1/-1}
+  .shared-add-form .select-menu:nth-of-type(3){grid-column:1/-1}
+  .shared-add-form .button{grid-column:1/-1}
+}
+
+.review-main-grid{align-items:start}
+.review-main-grid>.review-panel{min-width:0}
+.review-reasons-empty{margin-top:12px}
+.carried-section{border-top:1px solid var(--line);padding-top:16px}
+.review-panel .review-person{background:var(--surface-light)}
+.review-panel .review-person:first-child{background:var(--sky)}
+.review-panel .review-person:last-child{background:var(--lilac)}
+.review-panel .review-person>header h2{font-size:18px}
+.review-task-list{min-width:0}
+@media(max-width:1000px){.review-main-grid{grid-template-columns:1fr}}

@@ -8,6 +8,7 @@ import SelectMenu from './SelectMenu'
 
 const money = (value: number) => formatINR(value)
 const dateAfter = (days: number) => { const date = new Date(); date.setDate(date.getDate() + days); return todayISO(date) }
+type SaveFormResult = {ok: boolean; error?: string}
 
 function MetricCard({label,value,tint}:{label:string;value:string;tint?:'mint'|'coral'|'butter'|'lilac'|'sky'}) {
   return <article className={`finance-metric ${tint ?? ''}`}><p className="eyebrow">{label}</p><strong>{value}</strong></article>
@@ -77,42 +78,42 @@ export default function FinanceScreen() {
   const maxRevenue = Math.max(1,...categoryRevenue.map(([,value]) => value))
   const visibleTransactions = showAllTransactions ? filteredTransactions : filteredTransactions.slice(0, 5)
 
-  async function saveNewTransaction(transaction: Transaction) {
+  async function saveNewTransaction(transaction: Transaction): Promise<SaveFormResult> {
     setSavingMessage('')
     try {
       const result = await addTransaction(transaction)
-      if (result.error) { setSavingMessage(result.error); return false }
+      if (result.error) { setSavingMessage(result.error); return {ok: false, error: result.error} }
       setSavingMessage('Transaction saved')
-      return true
+      return {ok: true}
     } catch {
       setSavingMessage('Could not save transaction')
-      return false
+      return {ok: false, error: 'Could not save transaction'}
     }
   }
 
-  async function saveNewInvoice(invoice: Invoice) {
+  async function saveNewInvoice(invoice: Invoice): Promise<SaveFormResult> {
     setSavingMessage('')
     try {
       const result = await addInvoice(invoice)
-      if (result.error) { setSavingMessage(result.error); return false }
+      if (result.error) { setSavingMessage(result.error); return {ok: false, error: result.error} }
       setSavingMessage('Invoice saved')
-      return true
+      return {ok: true}
     } catch {
       setSavingMessage('Could not save invoice')
-      return false
+      return {ok: false, error: 'Could not save invoice'}
     }
   }
 
-  async function saveNewReimbursement(reimbursement: Reimbursement) {
+  async function saveNewReimbursement(reimbursement: Reimbursement): Promise<SaveFormResult> {
     setSavingMessage('')
     try {
       const result = await addReimbursement(reimbursement)
-      if (result.error) { setSavingMessage(result.error); return false }
+      if (result.error) { setSavingMessage(result.error); return {ok: false, error: result.error} }
       setSavingMessage('Reimbursement saved')
-      return true
+      return {ok: true}
     } catch {
       setSavingMessage('Could not save reimbursement')
-      return false
+      return {ok: false, error: 'Could not save reimbursement'}
     }
   }
 
@@ -226,7 +227,7 @@ function SettingsForm({settings,onSave,onMessage}:{settings:Settings;onSave:(set
   return <form className="settings-form" noValidate onSubmit={(event) => void submit(event)}><div><p className="eyebrow">Settings</p><h2>Anchor the cash view</h2></div><label>Current balance<input type="number" min="0" step="1" value={balance} onChange={(event) => setBalance(event.target.value)}/></label><label>Balance as of<input type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)}/></label><label>1 AED in INR<input type="number" min="0" step="0.01" value={aed} onChange={(event) => setAed(event.target.value)}/></label><label>1 USD in INR<input type="number" min="0" step="0.01" value={usd} onChange={(event) => setUsd(event.target.value)}/></label><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button></form>
 }
 
-function TransactionModal({close,save,currentPerson}:{close:()=>void;save:(transaction:Transaction)=>Promise<boolean>;currentPerson:Person}) {
+function TransactionModal({close,save,currentPerson}:{close:()=>void;save:(transaction:Transaction)=>Promise<SaveFormResult>;currentPerson:Person}) {
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [direction,setDirection] = useState<Transaction['direction']>('out')
@@ -243,8 +244,9 @@ function TransactionModal({close,save,currentPerson}:{close:()=>void;save:(trans
     if (!date || !Number.isFinite(amount) || amount <= 0 || !category || !description) { setError('Complete the date, amount, category, and description.'); return }
     setBusy(true)
     try {
-      const ok = await save({id:crypto.randomUUID(),date,direction:String(form.get('direction')) as Transaction['direction'],amount,currency:String(form.get('currency')) as Transaction['currency'],category,description,party:String(form.get('party') ?? '').trim() || undefined,createdBy:currentPerson})
-      if (ok) close()
+      const result = await save({id:crypto.randomUUID(),date,direction:String(form.get('direction')) as Transaction['direction'],amount,currency:String(form.get('currency')) as Transaction['currency'],category,description,party:String(form.get('party') ?? '').trim() || undefined,createdBy:currentPerson})
+      if (result.ok) close()
+      else setError(result.error ?? 'Could not save transaction')
     } finally {
       setBusy(false)
     }
@@ -252,7 +254,7 @@ function TransactionModal({close,save,currentPerson}:{close:()=>void;save:(trans
   return <div className="modal-bg"><section className="modal finance-modal"><button className="modal-close" onClick={close} type="button" disabled={busy}>×</button><p className="eyebrow">Camp finance</p><h2>Log money</h2>{error&&<p className="login-error" role="alert">{error}</p>}<form className="modal-form" noValidate onSubmit={(event) => void submit(event)}><label>Date<input name="date" type="date" defaultValue={todayISO()}/></label><label>Direction<SelectMenu value={direction} options={[{value:'out',label:'Money out'},{value:'in',label:'Money in'}]} ariaLabel="Transaction direction" name="direction" onChange={setDirection}/></label><label>Amount<input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount"/></label><label>Currency<SelectMenu value={currency} options={[{value:'INR',label:'INR'},{value:'AED',label:'AED'},{value:'USD',label:'USD'}]} ariaLabel="Transaction currency" name="currency" onChange={setCurrency}/></label><label>Category<SelectMenu value={category} options={['Services','Content','Website','Training','Salary','Tools','Travel','Legal','Other'].map((item) => ({value:item,label:item}))} ariaLabel="Transaction category" name="category" onChange={setCategory}/></label><label>Description<input name="description" placeholder="What moved?"/></label><label>Party <span className="optional">optional</span><input name="party" placeholder="Client or supplier"/></label><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : 'Save transaction'}</button></form></section></div>
 }
 
-function InvoiceModal({close,save}:{close:()=>void;save:(invoice:Invoice)=>Promise<boolean>}) {
+function InvoiceModal({close,save}:{close:()=>void;save:(invoice:Invoice)=>Promise<SaveFormResult>}) {
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [currency,setCurrency] = useState<Invoice['currency']>('INR')
@@ -268,14 +270,15 @@ function InvoiceModal({close,save}:{close:()=>void;save:(invoice:Invoice)=>Promi
     if (!party || !description || !Number.isFinite(amount) || amount <= 0 || !issuedDate || !dueDate || dueDate < issuedDate) { setError('Complete the invoice details with a valid date range.'); return }
     setBusy(true)
     try {
-      const ok = await save({id:crypto.randomUUID(),party,description,amount,currency:String(form.get('currency')) as Invoice['currency'],issuedDate,dueDate,status:String(form.get('status')) as Invoice['status'],notes:String(form.get('notes') ?? '').trim() || undefined})
-      if (ok) close()
+      const result = await save({id:crypto.randomUUID(),party,description,amount,currency:String(form.get('currency')) as Invoice['currency'],issuedDate,dueDate,status:String(form.get('status')) as Invoice['status'],notes:String(form.get('notes') ?? '').trim() || undefined})
+      if (result.ok) close()
+      else setError(result.error ?? 'Could not save invoice')
     } catch { setError('Could not save invoice') } finally { setBusy(false) }
   }
   return <div className="modal-bg"><section className="modal finance-modal"><button className="modal-close" onClick={close} type="button" disabled={busy}>×</button><p className="eyebrow">Camp finance</p><h2>Add an invoice</h2>{error&&<p className="login-error" role="alert">{error}</p>}<form className="modal-form" noValidate onSubmit={(event) => void submit(event)}><label>Party<input name="party" autoFocus placeholder="Client or customer"/></label><label>Description<input name="description" placeholder="What is this for?"/></label><label>Amount<input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount"/></label><label>Currency<SelectMenu value={currency} options={[{value:'INR',label:'INR'},{value:'AED',label:'AED'},{value:'USD',label:'USD'}]} ariaLabel="Invoice currency" name="currency" onChange={setCurrency}/></label><label>Status<SelectMenu value={status} options={[{value:'sent',label:'Sent'},{value:'draft',label:'Draft'}]} ariaLabel="Invoice status" name="status" onChange={setStatus}/></label><label>Issued date<input name="issuedDate" type="date" defaultValue={todayISO()}/></label><label>Due date<input name="dueDate" type="date" defaultValue={dateAfter(14)}/></label><label>Notes <span className="optional">optional</span><textarea name="notes" rows={3} placeholder="Payment context"/></label><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : 'Save invoice'}</button></form></section></div>
 }
 
-function ReimbursementModal({close,save,currentPerson}:{close:()=>void;save:(reimbursement:Reimbursement)=>Promise<boolean>;currentPerson:Person}) {
+function ReimbursementModal({close,save,currentPerson}:{close:()=>void;save:(reimbursement:Reimbursement)=>Promise<SaveFormResult>;currentPerson:Person}) {
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [currency,setCurrency] = useState<Reimbursement['currency']>('INR')
@@ -289,8 +292,9 @@ function ReimbursementModal({close,save,currentPerson}:{close:()=>void;save:(rei
     if (!description || !Number.isFinite(amount) || amount <= 0 || !requestedDate) { setError('Complete the reimbursement details.'); return }
     setBusy(true)
     try {
-      const ok = await save({id:crypto.randomUUID(),description,amount,currency:String(form.get('currency')) as Reimbursement['currency'],requestedBy:String(form.get('requestedBy')) as Person,requestedDate,settled:false,notes:String(form.get('notes') ?? '').trim() || undefined})
-      if (ok) close()
+      const result = await save({id:crypto.randomUUID(),description,amount,currency:String(form.get('currency')) as Reimbursement['currency'],requestedBy:String(form.get('requestedBy')) as Person,requestedDate,settled:false,notes:String(form.get('notes') ?? '').trim() || undefined})
+      if (result.ok) close()
+      else setError(result.error ?? 'Could not save reimbursement')
     } catch { setError('Could not save reimbursement') } finally { setBusy(false) }
   }
   return <div className="modal-bg"><section className="modal finance-modal"><button className="modal-close" onClick={close} type="button" disabled={busy}>×</button><p className="eyebrow">Camp finance</p><h2>Add a reimbursement</h2>{error&&<p className="login-error" role="alert">{error}</p>}<form className="modal-form" noValidate onSubmit={(event) => void submit(event)}><label>Description<input name="description" autoFocus placeholder="What should be reimbursed?"/></label><label>Amount<input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount"/></label><label>Currency<SelectMenu value={currency} options={[{value:'INR',label:'INR'},{value:'AED',label:'AED'},{value:'USD',label:'USD'}]} ariaLabel="Reimbursement currency" name="currency" onChange={setCurrency}/></label><label>Requested by<SelectMenu value={requestedBy} options={[{value:'nihal',label:'Nihal'},{value:'shirin',label:'Shirin'}]} ariaLabel="Requested by" name="requestedBy" onChange={setRequestedBy}/></label><label>Requested date<input name="requestedDate" type="date" defaultValue={todayISO()}/></label><label>Notes <span className="optional">optional</span><textarea name="notes" rows={3} placeholder="A little context"/></label><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : 'Save reimbursement'}</button></form></section></div>

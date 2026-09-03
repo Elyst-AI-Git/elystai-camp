@@ -20,3 +20,6 @@ export const categoryLabel = (category: Category): string => {
 }
 
 export const taskCategories: Category[] = ['services', 'content', 'website', 'training', 'upskilling', 'other']
+
+/** Includes legacy values so existing rows remain editable without changing category on save. */
+export const allCategories: Category[] = ['services', 'content', 'website', 'training', 'upskilling', 'other', 'outbound', 'delivery', 'admin']

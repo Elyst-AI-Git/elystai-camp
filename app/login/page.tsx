@@ -35,7 +35,9 @@ export default function Login() {
         setError('Incorrect email or password')
         return
       }
-      window.location.assign('/')
+      const nextParam = new URLSearchParams(window.location.search).get('next')
+      const next = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/'
+      window.location.assign(next)
     } catch {
       setPassword('')
       setError('Incorrect email or password')

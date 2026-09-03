@@ -21,6 +21,13 @@ function formatDate(value: string, options: Intl.DateTimeFormatOptions): string 
   return new Intl.DateTimeFormat('en-IN', options).format(new Date(`${value}T12:00:00`))
 }
 
+function mondayISO(value: string): string {
+  const date = new Date(`${value.slice(0, 10)}T12:00:00`)
+  const day = date.getDay()
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1))
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 function Avatar({owner}: {owner: Owner | Person}) {
   const person = owner === 'nihal' || owner === 'shirin' ? owner : undefined
   return <span className={`avatar ${owner}`}>{person ? <img src={`/avatars/${person}-dp.png`} alt=""/> : owner === 'both' ? 'N+S' : '•'}</span>
@@ -67,10 +74,13 @@ function SprintPicker() {
 }
 
 function Shell() {
-  const {view, setView, currentDate} = useCamp()
+  const {view, setView, currentDate, isRemoteConfigured, authStatus, isLoading, loadError} = useCamp()
+  if (isRemoteConfigured && (authStatus === 'loading' || isLoading)) return <main className="app-status"><p className="eyebrow">Camp</p><h1>Checking your workspace…</h1></main>
+  if (isRemoteConfigured && authStatus === 'error') return <main className="app-status"><p className="eyebrow">Camp</p><h1>Workspace unavailable</h1><p>Camp could not verify your sign-in. Refresh and try again.</p>{loadError && <small>{loadError}</small>}</main>
+  if (isRemoteConfigured && authStatus === 'signed-out') return null
   const liveDate = formatDate(currentDate, {weekday: 'long', day: 'numeric', month: 'long'})
   const icons = ['⌂', '◷', '⌁', '◫']
-  return <div className="shell"><aside className="side"><div className="logo"><div className="logo-main"><img src="/icon.svg" alt=""/><span>camp</span></div><div className="logo-by"><span>by</span><img src="/brand/elyst-ai-wordmark.png" alt="Elyst AI"/></div></div><nav>{navigation.map((item, index) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}><span>{icons[index]}</span>{item}</button>)}</nav><ProfileIdentity/><div className="side-note" aria-hidden="true"/></aside><main><header className="top"><div><p className="eyebrow">Elyst AI · {liveDate}</p><h1>{view}</h1></div><div className="top-actions">{(view === 'Today' || view === 'Review') && <SprintPicker/>}<div className="mobile-profile"><ProfileIdentity compact/></div></div></header>{view === 'Today' ? <Today/> : view === 'Calendar' ? <CalendarScreen/> : view === 'Money' ? <FinanceScreen/> : <ReviewScreen/>}</main><nav className="bottom-nav">{navigation.map((item) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}>{item}</button>)}</nav></div>
+  return <div className="shell">{loadError && <div className="data-warning" role="status">{loadError}</div>}<aside className="side"><div className="logo"><div className="logo-main"><img src="/icon.svg" alt=""/><span>camp</span></div><div className="logo-by"><span>by</span><img src="/brand/elyst-ai-wordmark.png" alt="Elyst AI"/></div></div><nav>{navigation.map((item, index) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}><span>{icons[index]}</span>{item}</button>)}</nav><ProfileIdentity/><div className="side-note" aria-hidden="true"/></aside><main><header className="top"><div><p className="eyebrow">Elyst AI · {liveDate}</p><h1>{view}</h1></div><div className="top-actions">{(view === 'Today' || view === 'Review') && <SprintPicker/>}<div className="mobile-profile"><ProfileIdentity compact/></div></div></header>{view === 'Today' ? <Today/> : view === 'Calendar' ? <CalendarScreen/> : view === 'Money' ? <FinanceScreen/> : <ReviewScreen/>}</main><nav className="bottom-nav">{navigation.map((item) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}>{item}</button>)}</nav></div>
 }
 
 function Today() {
@@ -82,7 +92,8 @@ function Today() {
   const weeklyTasks = tasks.filter((task) => task.sprintId === sprint.id)
   const completionRate = weeklyTasks.length ? completed / weeklyTasks.length : 0
   const date = new Date(`${currentDate}T12:00:00`)
-  const daysLeft = date.getDay() === 0 ? 0 : 7 - date.getDay()
+  const sprintEnd = new Date(`${sprint.endDate}T12:00:00`)
+  const daysLeft = Number.isNaN(sprintEnd.getTime()) ? 0 : Math.max(0, Math.floor((sprintEnd.getTime() - date.getTime()) / 86400000))
   const overdue = invoices.find((invoice) => daysOverdue(invoice) >= 14)
   const blocked = tasks.find((task) => task.status === 'blocked' && Math.floor((new Date(`${currentDate}T12:00:00`).getTime() - new Date(`${task.day}T12:00:00`).getTime()) / 86400000) > 2)
   const waiting = tasks.find((task) => task.status === 'waiting' && Math.floor((new Date(`${currentDate}T12:00:00`).getTime() - new Date(`${task.day}T12:00:00`).getTime()) / 86400000) > 3)
@@ -90,7 +101,7 @@ function Today() {
   const insight: [string, string, string] = runway !== null && runway < 8 ? ['coral', 'Runway is under 8 weeks. Review spend.', 'Review spend'] : overdue ? ['coral', `${overdue.party} is ${daysOverdue(overdue)} days overdue. Chase it.`, 'Open invoices'] : daysLeft <= 3 && calls === 0 ? ['coral', `${daysLeft} days left and no calls booked. Change the week.`, 'Change the week'] : completionRate > .8 && calls === 0 ? ['butter', `You’ve closed ${Math.round(completionRate * 100)}% of tasks and booked no calls this week.`, 'Change the week'] : blocked ? ['butter', `Blocked work needs a next step. Ask ${blocked.waitingOn || 'for help'}.`, 'Check handoff'] : waiting ? ['butter', `${waiting.waitingOn || 'A reply'} has been waiting ${Math.max(1, Math.floor((new Date(`${currentDate}T12:00:00`).getTime() - new Date(`${waiting.day}T12:00:00`).getTime()) / 86400000))} days.`, 'Check handoff'] : ['mint', 'On track. Keep the next Must clear.', 'Keep moving']
   const insightTarget = insight[2] === 'Open invoices' || insight[2] === 'Review spend' ? 'Money' : 'Today'
   const laneOrder: Person[] = currentPerson === 'shirin' ? ['shirin', 'nihal'] : ['nihal', 'shirin']
-  return <><section className="number-hero"><div className="hero-copy"><div className="number"><strong>{calls}</strong><span>/ {sprint.targetCalls}</span></div><h2>Audit calls booked</h2><p className="hero-sprint">{sprint.name}</p><p className="hero-week">Week ends Sunday · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</p></div><div className="hero-right"><div className="hero-progress"><div className="arc" style={{'--progress': `${sprint.targetCalls ? Math.min(100, calls / sprint.targetCalls * 100) : 0}%`} as React.CSSProperties}><span>{calls}/{sprint.targetCalls}</span></div><p className="hero-goal">Goal: {sprint.goal}</p></div><CallLogger sprintId={sprint.id} calls={calls}/></div></section><section className={`insight ${insight[0]}`}><span className="insight-star">✦</span><div><p className="eyebrow">A useful nudge</p><h3>{insight[1]}</h3></div><button type="button" className="button dark" onClick={() => setView(insightTarget)}>{insight[2]} ›</button></section><section className="lane-wrap">{laneOrder.map((person) => <Lane person={person} sprint={sprint} key={person}/>)}</section><TodayCalendarStrip/><WeeklyKpiPanel/></>
+  return <><section className="number-hero"><div className="hero-copy"><div className="number"><strong>{calls}</strong><span>/ {sprint.targetCalls}</span></div><h2>Audit calls booked</h2><p className="hero-sprint">{sprint.name}</p><p className="hero-week">Week ends Sunday · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</p></div><div className="hero-right"><div className="hero-progress"><div className="arc" style={{'--progress': `${sprint.targetCalls ? Math.min(100, calls / sprint.targetCalls * 100) : 0}%`} as React.CSSProperties}><span>{calls}/{sprint.targetCalls}</span></div><p className="hero-goal">Goal: {sprint.goal}</p></div><CallLogger sprintId={sprint.id} calls={calls}/></div></section><section className={`insight ${insight[0]}`}><span className="insight-star">✦</span><div><p className="eyebrow">A useful nudge</p><h3>{insight[1]}</h3></div><button type="button" className="button dark" onClick={() => setView(insightTarget)}>{insight[2]} ›</button></section><section className="lane-wrap">{laneOrder.map((person) => <Lane person={person} sprint={sprint} key={person}/>)}</section><SharedTasks sprint={sprint}/><TodayCalendarStrip/><WeeklyKpiPanel/></>
 }
 
 function CallLogger({sprintId, calls}: {sprintId: string; calls: number}) {
@@ -130,6 +141,33 @@ function Lane({person, sprint}: {person: Person; sprint: Sprint}) {
   return <section className={`lane ${currentPerson === person ? 'selected' : 'secondary'}`}><div className={`lane-top ${activeDay ? 'active-day' : 'inactive-day'}`} role="button" tabIndex={0} aria-label={`View ${personName[person]}'s profile`} onClick={() => setPreviewPerson(person)} onKeyDown={(event) => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); setPreviewPerson(person)}}}><Character person={person} state={state}/><div><p className="eyebrow">{personName[person]}</p><h2>{done} / {must.length} important</h2><small>{totalDone} / {must.length + stretch.length} total tasks</small></div><span className={`rest-dot ${isRestDay ? 'is-rest' : ''}`} title={isRestDay ? 'Rest day' : activeDay ? 'Active day' : 'No work logged'}>●</span></div><div className="lane-meta"><form className="hours-form" noValidate onSubmit={(event) => void saveHours(event)}><label>Hours today<div className="hours-stepper"><button type="button" aria-label={`Decrease ${personName[person]} hours`} disabled={hoursBusy || Number(hoursDraft || 0) <= 0} onClick={() => setHoursDraft(String(Math.max(0, Number(hoursDraft || 0) - .5)))}>−</button><input aria-label={`${personName[person]} hours today`} inputMode="decimal" type="number" min="0" max="24" step="0.5" value={hoursDraft} onChange={(event) => setHoursDraft(event.target.value)} placeholder="0"/><button type="button" aria-label={`Increase ${personName[person]} hours`} disabled={hoursBusy || Number(hoursDraft || 0) >= 24} onClick={() => setHoursDraft(String(Math.min(24, Number(hoursDraft || 0) + .5)))}>+</button></div></label><button type="submit" className="text-button" disabled={hoursBusy}>{hoursBusy ? 'Saving…' : 'Save hours'}</button></form><button type="button" className="rest-toggle" disabled={restBusy} onClick={() => void toggleRest()}>{restBusy ? 'Saving…' : isRestDay ? 'Remove rest day' : 'Mark rest day'}</button></div><div className="lane-tasks">{priorityTasks.map((task) => <TaskRow key={task.id} task={task} tasks={tasks} toggle={() => toggleTask(task.id)} update={(patch) => updateTask(task.id, patch)} remove={() => deleteTask(task.id)}/>)}</div>{adding ? <form className="inline-form" noValidate onSubmit={(event) => void add(event)}><input name="title" autoFocus placeholder="What needs doing?"/><SelectMenu value={addTier} options={[{value:'must',label:'Important'},{value:'stretch',label:'Stretch'}]} ariaLabel={`${personName[person]} task type`} name="tier" onChange={(value) => setAddTier(value)}/><SelectMenu value={addCategory} options={categories.map((category) => ({value:category,label:categoryLabel(category)}))} ariaLabel={`${personName[person]} task category`} name="category" onChange={(value) => setAddCategory(value)}/><button type="submit" className="button dark" disabled={busy}>{busy ? 'Adding…' : 'Add'}</button></form> : <button type="button" className="add-line" onClick={() => {setMessage('');setAdding(true)}}>+ Add task</button>}{message && <small className="task-error" role="status">{message}</small>}<details className="lane-details"><summary>Work hours</summary><ConsistencyHeatmap person={person} tasks={tasks} restDays={restDays} currentDate={currentDate}/><PrivateHours person={person} dailyHours={dailyHours} currentDate={currentDate}/></details></section>
 }
 
+function SharedTasks({sprint}: {sprint: Sprint}) {
+  const {tasks, currentDate, currentPerson, toggleTask, addTask, updateTask, deleteTask} = useCamp()
+  const sharedTasks = tasks.filter((task) => task.sprintId === sprint.id && task.day === currentDate && (task.owner === 'either' || task.owner === 'both'))
+  const [adding, setAdding] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [owner, setOwner] = useState<Owner>('both')
+  const [tier, setTier] = useState<Tier>('must')
+  const [category, setCategory] = useState<Category>('services')
+
+  async function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setMessage('')
+    const form = new FormData(event.currentTarget)
+    const title = String(form.get('title') ?? '').trim()
+    if (!title) { setMessage('Give this shared task a title.'); return }
+    setBusy(true)
+    try {
+      const result = await addTask({id: crypto.randomUUID(), sprintId: sprint.id, owner, title, day: currentDate, tier, category, status: 'open', carriedCount: 0})
+      if (result.error) { setMessage(result.error); return }
+      setAdding(false)
+    } catch { setMessage('Could not save shared task') } finally { setBusy(false) }
+  }
+
+  return <section className="shared-tasks"><div className="shared-tasks-head"><div><p className="eyebrow">Shared work</p><h2>One row for handoffs</h2><p>Either person can close a shared task. The account that closes it is recorded.</p></div><button type="button" className="button quiet" onClick={() => {setMessage('');setAdding((value) => !value)}}>{adding ? 'Cancel' : '+ Add shared task'}</button></div>{sharedTasks.length === 0 && !adding && <p className="shared-empty">No shared tasks for today.</p>}<div className="shared-task-list">{sharedTasks.map((task) => <TaskRow key={task.id} task={task} tasks={tasks} toggle={() => toggleTask(task.id)} update={(patch) => updateTask(task.id, patch)} remove={() => deleteTask(task.id)}/>)}</div>{adding && <form className="shared-add-form" noValidate onSubmit={(event) => void add(event)}><input name="title" autoFocus placeholder="What do we both need to move?"/><SelectMenu value={owner} options={[{value:'both',label:'Both'},{value:'either',label:'Either'}]} ariaLabel="Shared task owner" onChange={setOwner}/><SelectMenu value={tier} options={[{value:'must',label:'Important'},{value:'stretch',label:'Stretch'}]} ariaLabel="Shared task type" onChange={setTier}/><SelectMenu value={category} options={categories.map((item) => ({value:item,label:categoryLabel(item)}))} ariaLabel="Shared task category" onChange={setCategory}/><button type="submit" className="button dark" disabled={busy}>{busy ? 'Adding…' : 'Add task'}</button></form>}{message && <small className="task-error" role="status">{message}</small>}<small className="shared-byline">Logged in as {currentPerson === 'nihal' ? 'Nihal' : 'Shirin'}</small></section>
+}
+
 function TaskRow({task, tasks, toggle, update, remove}: {task: Task; tasks: Task[]; toggle: () => Promise<MutationResult>; update: (patch: Partial<Task>) => Promise<MutationResult>; remove: () => Promise<MutationResult>}) {
   const [menu, setMenu] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editing, setEditing] = useState(false); const [slipPending, setSlipPending] = useState<Partial<Task> | null>(null)
   async function run(action: () => Promise<MutationResult>): Promise<boolean> { setBusy(true); setMessage(''); try { const result = await action(); if (result.error) { setMessage(result.error); return false }; setMenu(false); return true } catch { setMessage('Could not save task'); return false } finally { setBusy(false) } }
@@ -159,7 +197,10 @@ function NewSprintModal({onClose}: {onClose: () => void}) {
     const endDate = String(form.get('endDate') ?? '')
     const goal = String(form.get('goal') ?? '').trim()
     const targetCalls = Number(form.get('targetCalls'))
+    const startWeekday = new Date(`${startDate}T12:00:00`).getDay()
+    const endWeekday = new Date(`${endDate}T12:00:00`).getDay()
     if (!name || !startDate || !endDate || !goal || !Number.isInteger(targetCalls) || targetCalls < 0 || endDate < startDate) { setError('Complete the sprint details with a valid date range.'); return }
+    if (startWeekday !== 1 || endWeekday !== 0) { setError('Camp weeks run Monday to Sunday.'); return }
     setBusy(true)
     try {
       const result = await addSprint({id: crypto.randomUUID(),name,startDate,endDate,goal,targetCalls,isActive:true})
@@ -167,7 +208,8 @@ function NewSprintModal({onClose}: {onClose: () => void}) {
       onClose()
     } catch { setError('Could not save sprint') } finally { setBusy(false) }
   }
-  return <Modal title="Start a sprint" close={onClose} closeDisabled={busy}>{error && <p className="login-error" role="alert">{error}</p>}<form className="task-editor-form" noValidate onSubmit={(event) => void submit(event)}><label>Name<input name="name" autoFocus placeholder="Sprint 2"/></label><div className="task-editor-two"><label>Starts<input name="startDate" type="date" defaultValue={currentDate}/></label><label>Ends<input name="endDate" type="date" defaultValue={addDays(currentDate,6)}/></label></div><label>Goal<input name="goal" placeholder="What needs to move?"/></label><label>Audit-call target<input name="targetCalls" type="number" min="0" step="1" defaultValue="2"/></label><div className="modal-form-actions"><button type="button" className="button quiet" onClick={onClose} disabled={busy}>Cancel</button><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : 'Start sprint'}</button></div></form></Modal>
+  const startDefault = mondayISO(currentDate)
+  return <Modal title="Start a sprint" close={onClose} closeDisabled={busy}>{error && <p className="login-error" role="alert">{error}</p>}<form className="task-editor-form" noValidate onSubmit={(event) => void submit(event)}><label>Name<input name="name" autoFocus placeholder="Sprint 2"/></label><div className="task-editor-two"><label>Starts<input name="startDate" type="date" defaultValue={startDefault}/></label><label>Ends<input name="endDate" type="date" defaultValue={addDays(startDefault,6)}/></label></div><label>Goal<input name="goal" placeholder="What needs to move?"/></label><label>Audit-call target<input name="targetCalls" type="number" min="0" step="1" defaultValue="2"/></label><div className="modal-form-actions"><button type="button" className="button quiet" onClick={onClose} disabled={busy}>Cancel</button><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : 'Start sprint'}</button></div></form></Modal>
 }
 
 function ConsistencyHeatmap({person, tasks, restDays, currentDate}: {person: Person; tasks: Task[]; restDays: ReturnType<typeof useCamp>['restDays']; currentDate: string}) {
