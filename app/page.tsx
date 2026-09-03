@@ -35,8 +35,10 @@ function Avatar({owner}: {owner: Owner | Person}) {
 
 function Character({person, state}: {person: Person; state: CharacterState}) {
   const [missing, setMissing] = useState(false)
-  const source = person === 'shirin' ? '/avatars/shirin-scenes.png' : `/avatars/${person}-${state}.png`
-  return <div className={`character ${person} ${state} ${person === 'shirin' ? 'scene-collage' : ''}`}>{missing ? <span className="fallback-avatar">{personName[person]} · {state}</span> : <img src={source} alt={`${personName[person]} ${state}`} onError={() => setMissing(true)}/>}</div>
+  const source = `/avatars/${person}-${state}.png`
+  const collageWorking = person === 'shirin' && state === 'working'
+  useEffect(() => setMissing(false), [source])
+  return <div className={`character ${person} ${state} ${collageWorking ? 'scene-collage' : ''}`}>{missing ? <span className="fallback-avatar">{personName[person]} · {state}</span> : <img src={source} alt={`${personName[person]} ${state}`} onError={() => setMissing(true)}/>}</div>
 }
 
 function ProfileIdentity({compact = false}: {compact?: boolean}) {
