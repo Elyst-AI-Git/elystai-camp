@@ -121,5 +121,54 @@ export default function Login() {
     }
   }
 
-  return <main className="login-page"><section className="login-visual" aria-label="Elyst AI map"><img src="/brand/elystai-map.png" alt="Elyst AI work map"/></section><section className="login-card"><div className="login-lockup"><div className="login-lockup-main"><img src="/icon.svg" alt="Camp"/><span>camp</span></div><div className="login-lockup-by"><span>by</span><img src="/brand/elyst-ai-wordmark.png" alt="Elyst AI"/></div></div><p className="eyebrow">Private workspace</p><h1>Make room for<br/><em>the work that moves.</em></h1>{recovery ? <><p className="login-intro">Choose a new password for your Camp account.</p><form noValidate onSubmit={(event) => void updatePassword(event)}><label>New password<input value={newPassword} onChange={(event) => {setNewPassword(event.target.value);setError('')}} type="password" autoComplete="new-password"/></label><label>Confirm password<input value={confirmPassword} onChange={(event) => {setConfirmPassword(event.target.value);setError('')}} type="password" autoComplete="new-password"/></label>{error&&<p className="login-error" role="alert">{error}</p>}<button className="button dark" type="submit" disabled={recoveryBusy}>{recoveryBusy?'Updating…':'Update password'}</button></form></> : <><p className="login-intro">Sign in to the shared daily loop for Nihal and Shirin.</p><form noValidate onSubmit={(event) => void submit(event)}><label>Email<input value={email} onChange={(event) => {setEmail(event.target.value);setError('');setSent(false)}} type="email" autoComplete="email"/></label><label>Password<input value={password} onChange={(event) => {setPassword(event.target.value);setError('');setSent(false)}} type="password" autoComplete="current-password"/></label>{error&&<p className="login-error" role="alert">{error}</p>}{sent&&<p className="login-sent" role="status">{sent && 'Password reset complete. Sign in with your new password.'}</p>}<button className="button dark" type="submit" disabled={busy}>{busy?'Signing in…':'Sign in'}</button></form><button className="forgot" type="button" onClick={() => void forgot()} disabled={forgotBusy}>{forgotBusy?'Sending…':'Forgot password?'}</button></>}</section></main>
+  return (
+    <main className="login-page">
+      <section className="login-shell" aria-label="Camp sign in">
+        <section className="login-visual" aria-label="Elyst AI map">
+          <img src="/brand/elystai-map.png" alt="Elyst AI work map"/>
+          <div className="login-visual-copy" aria-hidden="true">
+            <p>Elyst AI · Camp</p>
+            <strong>Keep the motion<br/>visible.</strong>
+          </div>
+        </section>
+
+        <section className="login-card">
+          <div className="login-lockup">
+            <div className="login-lockup-main"><img src="/icon.svg" alt="Camp"/><span>camp</span></div>
+            <div className="login-lockup-by"><span>by</span><img src="/brand/elyst-ai-wordmark.png" alt="Elyst AI"/></div>
+          </div>
+
+          {recovery ? (
+            <>
+              <p className="eyebrow">Account recovery</p>
+              <h1>Set a new<br/><em>password.</em></h1>
+              <p className="login-intro">Choose a new password for your Camp account.</p>
+              <form noValidate onSubmit={(event) => void updatePassword(event)}>
+                <div className="login-field"><label htmlFor="new-password">New password</label><input id="new-password" value={newPassword} onChange={(event) => {setNewPassword(event.target.value);setError('')}} type="password" autoComplete="new-password"/></div>
+                <div className="login-field"><label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" value={confirmPassword} onChange={(event) => {setConfirmPassword(event.target.value);setError('')}} type="password" autoComplete="new-password"/></div>
+                {error&&<p className="login-error" role="alert">{error}</p>}
+                <button className="button dark" type="submit" disabled={recoveryBusy}>{recoveryBusy?'Updating…':'Update password'}</button>
+              </form>
+            </>
+          ) : (
+            <>
+              <p className="eyebrow">Private workspace</p>
+              <h1>Welcome<br/><em>back.</em></h1>
+              <p className="login-intro">Sign in to the shared daily loop for Nihal and Shirin.</p>
+              <form noValidate onSubmit={(event) => void submit(event)}>
+                <div className="login-field"><label htmlFor="login-email">Email address</label><input id="login-email" value={email} onChange={(event) => {setEmail(event.target.value);setError('');setSent(false)}} type="email" autoComplete="email"/></div>
+                <div className="login-field">
+                  <div className="login-field-heading"><label htmlFor="login-password">Password</label><button className="forgot inline" type="button" onClick={() => void forgot()} disabled={forgotBusy}>{forgotBusy?'Sending…':'Forgot password?'}</button></div>
+                  <input id="login-password" value={password} onChange={(event) => {setPassword(event.target.value);setError('');setSent(false)}} type="password" autoComplete="current-password"/>
+                </div>
+                {error&&<p className="login-error" role="alert">{error}</p>}
+                {sent&&<p className="login-sent" role="status">Password reset complete. Sign in with your new password.</p>}
+                <button className="button dark" type="submit" disabled={busy}>{busy?'Signing in…':'Sign in'}</button>
+              </form>
+            </>
+          )}
+        </section>
+      </section>
+    </main>
+  )
 }
