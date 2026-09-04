@@ -169,39 +169,6 @@ function Lane({person, sprint}: {person: Person; sprint: Sprint}) {
   return <section className={`lane ${previewPerson === person ? 'selected' : 'secondary'}`}><div className={`lane-top ${activeDay ? 'active-day' : 'inactive-day'}`} role="button" tabIndex={0} aria-label={`View ${personName[person]}'s profile`} onClick={() => setPreviewPerson(person)} onKeyDown={(event) => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); setPreviewPerson(person)}}}><Character person={person} state={state}/><div><p className="eyebrow">{personName[person]}</p><h2>{done} / {must.length} important</h2><small>{totalDone} / {must.length + stretch.length} total tasks</small></div><span className={`rest-dot ${isRestDay ? 'is-rest' : ''}`} title={isRestDay ? 'Rest day' : 'Work day'}>●</span></div><div className="lane-meta"><form className="hours-form" noValidate onSubmit={(event) => void saveHours(event)}><label>Hours today<div className="hours-stepper"><button type="button" aria-label={`Decrease ${personName[person]} hours`} disabled={hoursBusy || Number(hoursDraft || 0) <= 0} onClick={() => setHoursDraft(String(Math.max(0, Number(hoursDraft || 0) - .5)))}>−</button><input aria-label={`${personName[person]} hours today`} inputMode="decimal" type="number" min="0" max="24" step="0.5" value={hoursDraft} onChange={(event) => setHoursDraft(event.target.value)} placeholder="0"/><button type="button" aria-label={`Increase ${personName[person]} hours`} disabled={hoursBusy || Number(hoursDraft || 0) >= 24} onClick={() => setHoursDraft(String(Math.min(24, Number(hoursDraft || 0) + .5)))}>+</button></div></label><button type="submit" className="text-button" disabled={hoursBusy}>{hoursBusy ? 'Saving…' : 'Save hours'}</button></form><button type="button" className="rest-toggle" disabled={restBusy} onClick={() => void toggleRest()}>{restBusy ? 'Saving…' : isRestDay ? 'Remove rest day' : 'Mark rest day'}</button></div><div className="lane-tasks">{priorityTasks.map((task) => <TaskRow key={task.id} task={task} tasks={tasks} toggle={() => toggleTask(task.id)} update={(patch) => updateTask(task.id, patch)} remove={() => deleteTask(task.id)}/>)}</div>{adding ? <form className="inline-form" noValidate onSubmit={(event) => void add(event)}><input name="title" autoFocus placeholder="What needs doing?"/><SelectMenu value={addDay} options={sprintDayOptions(sprint, currentDate)} ariaLabel={`${personName[person]} task day`} name="day" onChange={setAddDay}/><SelectMenu value={addTier} options={[{value:'must',label:'Important'},{value:'stretch',label:'Stretch'}]} ariaLabel={`${personName[person]} task type`} name="tier" onChange={(value) => setAddTier(value)}/><SelectMenu value={addCategory} options={categories.map((category) => ({value:category,label:categoryLabel(category)}))} ariaLabel={`${personName[person]} task category`} name="category" onChange={(value) => setAddCategory(value)}/><button type="submit" className="button dark" disabled={busy}>{busy ? 'Adding…' : 'Add'}</button></form> : <button type="button" className="add-line" onClick={() => {setMessage('');setAdding(true)}}>+ Add task</button>}{message && <small className="task-error" role="status">{message}</small>}<details className="lane-details"><summary>Work hours</summary><ConsistencyHeatmap person={person} tasks={tasks} restDays={restDays} currentDate={currentDate}/><PrivateHours person={person} dailyHours={dailyHours} currentDate={currentDate}/></details></section>
 }
 
-function SharedTasks({sprint}: {sprint: Sprint}) {
-  const {tasks, currentDate, currentPerson, toggleTask, addTask, updateTask, deleteTask} = useCamp()
-  const sharedTasks = tasks.filter((task) => task.sprintId === sprint.id && task.day === currentDate && (task.owner === 'either' || task.owner === 'both')).sort((a, b) => {
-    const aUrgent = a.status === 'waiting' || a.status === 'blocked' ? 0 : 1
-    const bUrgent = b.status === 'waiting' || b.status === 'blocked' ? 0 : 1
-    return aUrgent - bUrgent
-  })
-  const [adding, setAdding] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
-  const [owner, setOwner] = useState<Owner>('both')
-  const [tier, setTier] = useState<Tier>('must')
-  const [category, setCategory] = useState<Category>('services')
-  const [addDay, setAddDay] = useState(currentDate)
-  useEffect(() => { setAddDay(currentDate) }, [currentDate])
-
-  async function add(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setMessage('')
-    const form = new FormData(event.currentTarget)
-    const title = String(form.get('title') ?? '').trim()
-    if (!title) { setMessage('Give this shared task a title.'); return }
-    setBusy(true)
-    try {
-      const result = await addTask({id: crypto.randomUUID(), sprintId: sprint.id, owner, title, day: addDay, tier, category, status: 'open', carriedCount: 0})
-      if (result.error) { setMessage(result.error); return }
-      setAdding(false)
-    } catch { setMessage('Could not save shared task') } finally { setBusy(false) }
-  }
-
-  return <section className="shared-tasks"><div className="shared-tasks-head"><div><p className="eyebrow">Shared work</p><h2>One row for handoffs</h2><p>Either person can close a shared task. The account that closes it is recorded.</p></div><button type="button" className="button quiet" onClick={() => {setMessage('');setAdding((value) => !value)}}>{adding ? 'Cancel' : '+ Add shared task'}</button></div>{sharedTasks.length === 0 && !adding && <p className="shared-empty">No shared tasks for today.</p>}<div className="shared-task-list">{sharedTasks.map((task) => <TaskRow key={task.id} task={task} tasks={tasks} toggle={() => toggleTask(task.id)} update={(patch) => updateTask(task.id, patch)} remove={() => deleteTask(task.id)}/>)}</div>{adding && <form className="shared-add-form" noValidate onSubmit={(event) => void add(event)}><input name="title" autoFocus placeholder="What do we both need to move?"/><SelectMenu value={addDay} options={sprintDayOptions(sprint, currentDate)} ariaLabel="Shared task day" name="day" onChange={setAddDay}/><SelectMenu value={owner} options={[{value:'both',label:'Both'},{value:'either',label:'Either'}]} ariaLabel="Shared task owner" onChange={setOwner}/><SelectMenu value={tier} options={[{value:'must',label:'Important'},{value:'stretch',label:'Stretch'}]} ariaLabel="Shared task type" onChange={setTier}/><SelectMenu value={category} options={categories.map((item) => ({value:item,label:categoryLabel(item)}))} ariaLabel="Shared task category" onChange={setCategory}/><button type="submit" className="button dark" disabled={busy}>{busy ? 'Adding…' : 'Add task'}</button></form>}{message && <small className="task-error" role="status">{message}</small>}<small className="shared-byline">Logged in as {currentPerson === 'nihal' ? 'Nihal' : 'Shirin'}</small></section>
-}
-
 function TaskRow({task, tasks, toggle, update, remove}: {task: Task; tasks: Task[]; toggle: () => Promise<MutationResult>; update: (patch: Partial<Task>) => Promise<MutationResult>; remove: () => Promise<MutationResult>}) {
   const [menu, setMenu] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editing, setEditing] = useState(false); const [slipPending, setSlipPending] = useState<Partial<Task> | null>(null)
   async function run(action: () => Promise<MutationResult>): Promise<boolean> { setBusy(true); setMessage(''); try { const result = await action(); if (result.error) { setMessage(result.error); return false }; setMenu(false); return true } catch { setMessage('Could not save task'); return false } finally { setBusy(false) } }
