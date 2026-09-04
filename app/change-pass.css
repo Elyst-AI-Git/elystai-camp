@@ -216,6 +216,11 @@
 .side>.profile-identity .profile-logout{border-color:rgba(26,26,26,.22);color:var(--ink)}
 .side>.profile-identity .profile-logout:hover{background:rgba(255,255,255,.45);color:var(--ink)}
 
+/* Quick add keeps the day choice beside the task details instead of silently
+   forcing every task onto today. */
+.inline-form{grid-template-columns:minmax(0,1.7fr) repeat(4,minmax(72px,1fr)) auto}
+.shared-add-form{grid-template-columns:minmax(0,1.5fr) repeat(5,minmax(76px,1fr)) auto}
+
 /* Shirin's supplied collage is a four-scene sheet; show one quadrant per state. */
 .character.scene-collage img{width:200%;height:200%;max-width:none;object-fit:cover}
 .character.scene-collage.working img{object-position:0 0}
@@ -239,6 +244,13 @@
 .review-weekly-goals .review-weekly-person:last-child{background:var(--lilac)}
 @media(max-width:1150px){.finance-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:680px){.finance-metrics{grid-template-columns:1fr 1fr}.finance-metric{min-height:120px}.runway-strip{align-items:flex-start;flex-direction:column;gap:8px;padding:19px}.runway-strip>p{text-align:left;font-size:13px}.logo-main span{font-size:31px}.logo-main img{width:31px;height:31px}.logo-by{padding-left:42px;font-size:11px}.logo-by img{width:62px;height:20px}}
+
+@media(max-width:680px){
+  .inline-form,.shared-add-form{grid-template-columns:1fr 1fr;gap:8px}
+  .inline-form input,.shared-add-form input{grid-column:1/-1}
+  .inline-form .select-menu,.shared-add-form .select-menu{grid-column:auto;display:block}
+  .inline-form .button,.shared-add-form .button{grid-column:1/-1}
+}
 
 /* Login is a calm two-column handoff: the map carries the story, the form stays focused. */
 .login-page{min-height:100dvh;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(360px,.8fr);gap:24px;align-items:stretch;padding:24px;background:var(--cream)}
