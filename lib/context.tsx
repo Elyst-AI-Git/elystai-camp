@@ -53,6 +53,7 @@ type CampState = {
   removeMetric: (id: string) => Promise<{error: string | null}>
   saveSprintChanges: (id: string, changesNextSprint: string) => Promise<{error: string | null}>
   addTransaction: (transaction: Transaction) => Promise<{error: string | null}>
+  updateTransaction: (id: string, patch: Partial<Transaction>) => Promise<{error: string | null}>
   addInvoice: (invoice: Invoice) => Promise<{error: string | null}>
   setInvoiceSent: (id: string) => Promise<{error: string | null}>
   setInvoiceReceived: (id: string, received: boolean) => Promise<{error: string | null}>
@@ -481,6 +482,15 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       const result = await saveTransaction(transaction)
       if (result.error) return {error: 'Could not save transaction'}
       setTransactions((items) => [transaction, ...items])
+      return {error: null}
+    },
+    updateTransaction: async (id, patch) => {
+      const current = transactions.find((transaction) => transaction.id === id)
+      if (!current) return {error: 'Transaction not found'}
+      const next = {...current, ...patch}
+      const result = await saveTransaction(next)
+      if (result.error) return {error: 'Could not update transaction'}
+      setTransactions((items) => items.map((transaction) => transaction.id === id ? next : transaction))
       return {error: null}
     },
     addInvoice: async (invoice) => {

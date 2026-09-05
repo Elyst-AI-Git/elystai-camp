@@ -15,18 +15,20 @@ function MetricCard({label,value,tint}:{label:string;value:string;tint?:'mint'|'
 }
 
 export default function FinanceScreen() {
-  const {transactions,invoices,reimbursements,settings,currentPerson,addTransaction,addInvoice,addReimbursement,setInvoiceSent,setInvoiceReceived,settleReimbursement,updateSettings} = useCamp()
+  const {transactions,invoices,reimbursements,settings,currentPerson,addTransaction,updateTransaction,addInvoice,addReimbursement,setInvoiceSent,setInvoiceReceived,settleReimbursement,updateSettings} = useCamp()
   const [direction,setDirection] = useState<'all'|'in'|'out'>('all')
   const [category,setCategory] = useState('all')
   const [fromDate,setFromDate] = useState('')
   const [toDate,setToDate] = useState('')
   const [showTransactionModal,setShowTransactionModal] = useState(false)
+  const [editingTransaction,setEditingTransaction] = useState<Transaction | null>(null)
   const [showInvoiceModal,setShowInvoiceModal] = useState(false)
   const [showReimbursementModal,setShowReimbursementModal] = useState(false)
   const [savingMessage,setSavingMessage] = useState('')
   const [busyId,setBusyId] = useState<string | null>(null)
   const [showSettings,setShowSettings] = useState(false)
   const [showAllTransactions,setShowAllTransactions] = useState(false)
+  const [categoryMonth,setCategoryMonth] = useState(monthKey(todayISO()))
   const today = todayISO()
   const snapshot = useMemo(() => ({
     balance: runningBalance(transactions, settings),
@@ -56,27 +58,33 @@ export default function FinanceScreen() {
     })
   }, [transactions, settings.fxRates])
   const categorySpend = useMemo(() => {
-    const currentMonth = monthKey(today)
     const totals = new Map<string,number>()
     transactions.forEach((transaction) => {
-      if (transaction.direction !== 'out' || monthKey(transaction.date) !== currentMonth) return
+      if (transaction.direction !== 'out' || monthKey(transaction.date) !== categoryMonth) return
       totals.set(transaction.category,(totals.get(transaction.category) ?? 0) + (toINR(transaction.amount, transaction.currency, settings.fxRates) ?? 0))
     })
     return Array.from(totals.entries()).sort((a,b) => b[1] - a[1])
-  }, [transactions, settings.fxRates, today])
+  }, [transactions, settings.fxRates, categoryMonth])
   const categoryRevenue = useMemo(() => {
-    const currentMonth = monthKey(today)
     const totals = new Map<string,number>()
     transactions.forEach((transaction) => {
-      if (transaction.direction !== 'in' || monthKey(transaction.date) !== currentMonth) return
+      if (transaction.direction !== 'in' || monthKey(transaction.date) !== categoryMonth) return
       totals.set(transaction.category,(totals.get(transaction.category) ?? 0) + (toINR(transaction.amount, transaction.currency, settings.fxRates) ?? 0))
     })
     return Array.from(totals.entries()).sort((a,b) => b[1] - a[1])
-  }, [transactions, settings.fxRates, today])
+  }, [transactions, settings.fxRates, categoryMonth])
   const maxMonthly = Math.max(1,...monthly.flatMap((month) => [month.inTotal,month.outTotal]))
   const maxCategory = Math.max(1,...categorySpend.map(([,value]) => value))
   const maxRevenue = Math.max(1,...categoryRevenue.map(([,value]) => value))
   const visibleTransactions = showAllTransactions ? filteredTransactions : filteredTransactions.slice(0, 5)
+
+  function shiftCategoryMonth(delta: number) {
+    const [year, month] = categoryMonth.split('-').map(Number)
+    const next = new Date(year, month - 1 + delta, 1)
+    setCategoryMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`)
+  }
+
+  const categoryMonthLabel = new Date(`${categoryMonth}-15T12:00:00`).toLocaleDateString('en-IN', {month: 'long', year: 'numeric'})
 
   async function saveNewTransaction(transaction: Transaction): Promise<SaveFormResult> {
     setSavingMessage('')
@@ -88,6 +96,19 @@ export default function FinanceScreen() {
     } catch {
       setSavingMessage('Could not save transaction')
       return {ok: false, error: 'Could not save transaction'}
+    }
+  }
+
+  async function saveEditedTransaction(transaction: Transaction): Promise<SaveFormResult> {
+    setSavingMessage('')
+    try {
+      const result = await updateTransaction(transaction.id, transaction)
+      if (result.error) { setSavingMessage(result.error); return {ok: false, error: result.error} }
+      setSavingMessage('Transaction updated')
+      return {ok: true}
+    } catch {
+      setSavingMessage('Could not update transaction')
+      return {ok: false, error: 'Could not update transaction'}
     }
   }
 
@@ -178,7 +199,7 @@ export default function FinanceScreen() {
         <div className="finance-filters"><SelectMenu value={direction} options={[{value:'all',label:'All directions'},{value:'in',label:'Money in'},{value:'out',label:'Money out'}]} ariaLabel="Transaction direction" onChange={setDirection}/><SelectMenu value={category} options={[{value:'all',label:'All categories'}, ...categories.map((item) => ({value:item,label:item}))]} ariaLabel="Transaction category" onChange={setCategory}/><input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} aria-label="From date"/><input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} aria-label="To date"/></div>
         <div className="ledger-head"><span>Date</span><span>Entry</span><span>Category</span><span>Amount</span></div>
         {filteredTransactions.length === 0&&<p className="finance-empty">No transactions match these filters.</p>}
-        {visibleTransactions.map((transaction) => <div className="finance-ledger-row" key={transaction.id}><span>{transaction.date}</span><div><b>{transaction.description}</b>{transaction.party&&<small>{transaction.party}</small>}</div><span>{transaction.category}</span><strong className={transaction.direction}>{transaction.direction === 'in' ? '+' : '−'} {originalWithINR(transaction.amount,transaction.currency,settings.fxRates)}</strong></div>)}
+        {visibleTransactions.map((transaction) => <div className="finance-ledger-row" key={transaction.id}><span>{transaction.date}</span><div><b>{transaction.description}</b>{transaction.party&&<small>{transaction.party}</small>}</div><span>{transaction.category}</span><strong className={transaction.direction}>{transaction.direction === 'in' ? '+' : '−'} {originalWithINR(transaction.amount,transaction.currency,settings.fxRates)}</strong>{!transaction.invoiceId && !transaction.reimbursementId && <button type="button" className="ledger-edit-button" aria-label={`Edit ${transaction.description}`} onClick={() => setEditingTransaction(transaction)}>Edit</button>}</div>)}
         {filteredTransactions.length > 5 && <button type="button" className="view-all-button" onClick={() => setShowAllTransactions((value) => !value)}>{showAllTransactions ? 'Show latest five' : `View all transactions (${filteredTransactions.length})`}</button>}
       </article>
     </section>
@@ -187,15 +208,16 @@ export default function FinanceScreen() {
 
     <section className="finance-grid lower">
       <article className="finance-panel"><div className="section-head"><div><p className="eyebrow">Invoices</p><h2>Sent is not collected</h2></div><div className="section-actions"><span className="count-pill">{overdueInvoices.length} overdue</span><button type="button" className="button quiet" onClick={() => setShowInvoiceModal(true)}>+ Invoice</button></div></div>{invoices.length === 0&&<p className="finance-empty">No invoices yet.</p>}{invoices.map((invoice) => {const overdue = daysOverdue(invoice); const received = invoice.status === 'received' || invoice.status === 'paid'; const draft = invoice.status === 'draft'; return <div className={`invoice-row ${overdue ? 'is-overdue' : ''}`} key={invoice.id}><div><b>{invoice.party}</b><small>{invoice.description}</small></div><div><strong>{formatOriginal(invoice.amount,invoice.currency)}</strong><small>{toINR(invoice.amount,invoice.currency,settings.fxRates) === null ? 'INR rate not set' : money(toINR(invoice.amount,invoice.currency,settings.fxRates) ?? 0)} · due {invoice.dueDate}</small></div><span className="status-pill">{overdue ? `${overdue} days overdue` : received ? 'Received' : invoice.status}</span><button type="button" className="text-button" disabled={busyId===invoice.id} onClick={() => void (draft ? sendInvoice(invoice) : changeInvoice(invoice))}>{busyId===invoice.id ? 'Saving…' : draft ? 'Mark sent' : received ? 'Reverse received' : 'Mark received'}</button></div>})}</article>
-      <article className="finance-panel"><div className="section-head"><div><p className="eyebrow">Reimbursements</p><h2>Pending outflows</h2></div><div className="section-actions"><span className="count-pill">{reimbursements.filter((item) => !item.settled).length} pending</span><button type="button" className="button quiet" onClick={() => setShowReimbursementModal(true)}>+ Reimbursement</button></div></div>{reimbursements.length === 0&&<p className="finance-empty">No reimbursements yet.</p>}{reimbursements.map((reimbursement) => <div className="invoice-row" key={reimbursement.id}><div><b>{reimbursement.description}</b><small>{reimbursement.requestedBy === 'nihal' ? 'Nihal' : 'Shirin'} · requested {reimbursement.requestedDate}</small></div><div><strong>{formatOriginal(reimbursement.amount,reimbursement.currency)}</strong><small>{toINR(reimbursement.amount,reimbursement.currency,settings.fxRates) === null ? 'INR rate not set' : money(toINR(reimbursement.amount,reimbursement.currency,settings.fxRates) ?? 0)}</small></div><span className="status-pill">{reimbursement.settled ? 'Settled' : 'Pending'}</span><button type="button" className="text-button" disabled={busyId===reimbursement.id} onClick={() => void changeReimbursement(reimbursement)}>{busyId===reimbursement.id ? 'Saving…' : reimbursement.settled ? 'Undo reimbursement settled' : 'Mark reimbursement settled'}</button></div>)}</article>
+      <article className="finance-panel"><div className="section-head"><div><p className="eyebrow">Reimbursements</p><h2>Pending outflows</h2></div><div className="section-actions"><span className="count-pill">{reimbursements.filter((item) => !item.settled).length} pending</span><button type="button" className="button quiet" onClick={() => setShowReimbursementModal(true)}>+ Reimbursement</button></div></div>{reimbursements.length === 0&&<p className="finance-empty">No reimbursements yet.</p>}{reimbursements.map((reimbursement) => <div className="invoice-row" key={reimbursement.id}><div><b>{reimbursement.description}</b><small>{reimbursement.requestedBy === 'nihal' ? 'Nihal' : 'Shirin'} · requested {reimbursement.requestedDate}</small></div><div><strong>{formatOriginal(reimbursement.amount,reimbursement.currency)}</strong><small>{toINR(reimbursement.amount,reimbursement.currency,settings.fxRates) === null ? 'INR rate not set' : money(toINR(reimbursement.amount,reimbursement.currency,settings.fxRates) ?? 0)}</small></div><span className={`status-pill ${reimbursement.settled ? '' : 'pending'}`}>{reimbursement.settled ? 'Settled' : 'Pending'}</span><button type="button" className="text-button" disabled={busyId===reimbursement.id} onClick={() => void changeReimbursement(reimbursement)}>{busyId===reimbursement.id ? 'Saving…' : reimbursement.settled ? 'Undo reimbursement settled' : 'Mark reimbursement settled'}</button></div>)}</article>
     </section>
 
-    <section className="finance-grid charts"><article className="finance-panel"><p className="eyebrow">Current month</p><h2>Spend by category</h2>{categorySpend.length === 0&&<p className="finance-empty">No outflows recorded this month.</p>}{categorySpend.map(([name,value]) => <div className="category-bar" key={name}><div><span>{name}</span><b>{money(value)}</b></div><i style={{width:`${Math.max(4,value/maxCategory*100)}%`}}/></div>)}</article><article className="finance-panel"><p className="eyebrow">Current month</p><h2>Revenue by category</h2>{categoryRevenue.length === 0&&<p className="finance-empty">No money received this month.</p>}{categoryRevenue.map(([name,value]) => <div className="category-bar revenue" key={name}><div><span>{name}</span><b>{money(value)}</b></div><i style={{width:`${Math.max(4,value/maxRevenue*100)}%`}}/></div>)}</article></section>
+    <section className="finance-grid charts"><article className="finance-panel"><div className="category-panel-head"><div><p className="eyebrow">Spend by category</p><h2>Outflows</h2></div><div className="category-month-nav"><button type="button" aria-label="Previous month" onClick={() => shiftCategoryMonth(-1)}>‹</button><strong>{categoryMonthLabel}</strong><button type="button" aria-label="Next month" onClick={() => shiftCategoryMonth(1)}>›</button></div></div>{categorySpend.length === 0&&<p className="finance-empty">No outflows recorded for this month.</p>}{categorySpend.map(([name,value]) => <div className="category-bar" key={name}><div><span>{name}</span><b>{money(value)}</b></div><i style={{width:`${Math.max(4,value/maxCategory*100)}%`}}/></div>)}</article><article className="finance-panel"><div className="category-panel-head"><div><p className="eyebrow">Revenue by category</p><h2>Inflows</h2></div><div className="category-month-nav"><button type="button" aria-label="Previous month" onClick={() => shiftCategoryMonth(-1)}>‹</button><strong>{categoryMonthLabel}</strong><button type="button" aria-label="Next month" onClick={() => shiftCategoryMonth(1)}>›</button></div></div>{categoryRevenue.length === 0&&<p className="finance-empty">No money received for this month.</p>}{categoryRevenue.map(([name,value]) => <div className="category-bar revenue" key={name}><div><span>{name}</span><b>{money(value)}</b></div><i style={{width:`${Math.max(4,value/maxRevenue*100)}%`}}/></div>)}</article></section>
 
     {savingMessage&&<p className="finance-toast" role="status">{savingMessage}</p>}
-    {showTransactionModal&&<TransactionModal close={() => setShowTransactionModal(false)} save={saveNewTransaction} currentPerson={currentPerson}/>} 
-    {showInvoiceModal&&<InvoiceModal close={() => setShowInvoiceModal(false)} save={saveNewInvoice}/>} 
-    {showReimbursementModal&&<ReimbursementModal close={() => setShowReimbursementModal(false)} save={saveNewReimbursement} currentPerson={currentPerson}/>} 
+    {showTransactionModal&&<TransactionModal close={() => setShowTransactionModal(false)} save={saveNewTransaction} currentPerson={currentPerson}/>}
+    {editingTransaction&&<TransactionModal close={() => setEditingTransaction(null)} save={saveEditedTransaction} currentPerson={currentPerson} initial={editingTransaction}/>}
+    {showInvoiceModal&&<InvoiceModal close={() => setShowInvoiceModal(false)} save={saveNewInvoice}/>}
+    {showReimbursementModal&&<ReimbursementModal close={() => setShowReimbursementModal(false)} save={saveNewReimbursement} currentPerson={currentPerson}/>}
   </div>
 }
 
@@ -227,12 +249,12 @@ function SettingsForm({settings,onSave,onMessage}:{settings:Settings;onSave:(set
   return <form className="settings-form" noValidate onSubmit={(event) => void submit(event)}><div><p className="eyebrow">Settings</p><h2>Anchor the cash view</h2></div><label>Current balance<input type="number" min="0" step="1" value={balance} onChange={(event) => setBalance(event.target.value)}/></label><label>Balance as of<input type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)}/></label><label>1 AED in INR<input type="number" min="0" step="0.01" value={aed} onChange={(event) => setAed(event.target.value)}/></label><label>1 USD in INR<input type="number" min="0" step="0.01" value={usd} onChange={(event) => setUsd(event.target.value)}/></label><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : 'Save settings'}</button></form>
 }
 
-function TransactionModal({close,save,currentPerson}:{close:()=>void;save:(transaction:Transaction)=>Promise<SaveFormResult>;currentPerson:Person}) {
+function TransactionModal({close,save,currentPerson,initial}:{close:()=>void;save:(transaction:Transaction)=>Promise<SaveFormResult>;currentPerson:Person;initial?:Transaction}) {
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
-  const [direction,setDirection] = useState<Transaction['direction']>('out')
-  const [currency,setCurrency] = useState<Transaction['currency']>('INR')
-  const [category,setCategory] = useState('Services')
+  const [direction,setDirection] = useState<Transaction['direction']>(initial?.direction ?? 'out')
+  const [currency,setCurrency] = useState<Transaction['currency']>(initial?.currency ?? 'INR')
+  const [category,setCategory] = useState(initial?.category ?? 'Services')
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
@@ -244,14 +266,14 @@ function TransactionModal({close,save,currentPerson}:{close:()=>void;save:(trans
     if (!date || !Number.isFinite(amount) || amount <= 0 || !category || !description) { setError('Complete the date, amount, category, and description.'); return }
     setBusy(true)
     try {
-      const result = await save({id:crypto.randomUUID(),date,direction:String(form.get('direction')) as Transaction['direction'],amount,currency:String(form.get('currency')) as Transaction['currency'],category,description,party:String(form.get('party') ?? '').trim() || undefined,createdBy:currentPerson})
+      const result = await save({id:initial?.id ?? crypto.randomUUID(),date,direction:String(form.get('direction')) as Transaction['direction'],amount,currency:String(form.get('currency')) as Transaction['currency'],category,description,party:String(form.get('party') ?? '').trim() || undefined,createdBy:initial?.createdBy ?? currentPerson})
       if (result.ok) close()
       else setError(result.error ?? 'Could not save transaction')
     } finally {
       setBusy(false)
     }
   }
-  return <div className="modal-bg"><section className="modal finance-modal"><button className="modal-close" onClick={close} type="button" disabled={busy}>×</button><p className="eyebrow">Camp finance</p><h2>Log money</h2>{error&&<p className="login-error" role="alert">{error}</p>}<form className="modal-form" noValidate onSubmit={(event) => void submit(event)}><label>Date<input name="date" type="date" defaultValue={todayISO()}/></label><label>Direction<SelectMenu value={direction} options={[{value:'out',label:'Money out'},{value:'in',label:'Money in'}]} ariaLabel="Transaction direction" name="direction" onChange={setDirection}/></label><label>Amount<input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount"/></label><label>Currency<SelectMenu value={currency} options={[{value:'INR',label:'INR'},{value:'AED',label:'AED'},{value:'USD',label:'USD'}]} ariaLabel="Transaction currency" name="currency" onChange={setCurrency}/></label><label>Category<SelectMenu value={category} options={['Services','Content','Website','Training','Salary','Tools','Travel','Legal','Other'].map((item) => ({value:item,label:item}))} ariaLabel="Transaction category" name="category" onChange={setCategory}/></label><label>Description<input name="description" placeholder="What moved?"/></label><label>Party <span className="optional">optional</span><input name="party" placeholder="Client or supplier"/></label><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : 'Save transaction'}</button></form></section></div>
+  return <div className="modal-bg"><section className="modal finance-modal"><button className="modal-close" onClick={close} type="button" disabled={busy}>×</button><p className="eyebrow">Camp finance</p><h2>{initial ? 'Edit transaction' : 'Log money'}</h2>{error&&<p className="login-error" role="alert">{error}</p>}<form className="modal-form" noValidate onSubmit={(event) => void submit(event)}><label>Date<input name="date" type="date" defaultValue={initial?.date ?? todayISO()}/></label><label>Direction<SelectMenu value={direction} options={[{value:'out',label:'Money out'},{value:'in',label:'Money in'}]} ariaLabel="Transaction direction" name="direction" onChange={setDirection}/></label><label>Amount<input name="amount" type="number" min="0.01" step="0.01" defaultValue={initial?.amount ?? ''} placeholder="Amount"/></label><label>Currency<SelectMenu value={currency} options={[{value:'INR',label:'INR'},{value:'AED',label:'AED'},{value:'USD',label:'USD'}]} ariaLabel="Transaction currency" name="currency" onChange={setCurrency}/></label><label>Category<SelectMenu value={category} options={['Services','Content','Website','Training','Salary','Tools','Travel','Legal','Other'].map((item) => ({value:item,label:item}))} ariaLabel="Transaction category" name="category" onChange={setCategory}/></label><label>Description<input name="description" defaultValue={initial?.description ?? ''} placeholder="What moved?"/></label><label>Party <span className="optional">optional</span><input name="party" defaultValue={initial?.party ?? ''} placeholder="Client or supplier"/></label><button type="submit" className="button dark" disabled={busy}>{busy ? 'Saving…' : initial ? 'Update transaction' : 'Save transaction'}</button></form></section></div>
 }
 
 function InvoiceModal({close,save}:{close:()=>void;save:(invoice:Invoice)=>Promise<SaveFormResult>}) {

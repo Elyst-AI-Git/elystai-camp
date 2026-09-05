@@ -386,3 +386,25 @@
 .goal-target-stepper input{flex:1;min-width:0;text-align:center}
 .goal-target-field>.optional{display:block;margin-top:1px}
 .goal-target-stepper input::-webkit-inner-spin-button,.goal-target-stepper input::-webkit-outer-spin-button{appearance:none;margin:0}
+
+/* Finance ledger editing and category month navigation. */
+.finance-ledger-row{display:grid;grid-template-columns:100px minmax(0,1fr) 120px auto auto;align-items:center;gap:12px;border-top:1px solid var(--line);padding:14px 0;font-size:13px}
+.finance-ledger-row>span{color:var(--muted)}
+.finance-ledger-row>div{display:grid;gap:3px;min-width:0}
+.finance-ledger-row>div b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.finance-ledger-row>div small{color:var(--muted);font-size:12px}
+.finance-ledger-row>strong{white-space:nowrap;text-align:right}
+.finance-ledger-row>strong.in{color:#4f9b41}
+.finance-ledger-row>strong.out{color:var(--red-muted)}
+.ledger-edit-button{border:0;border-radius:8px;background:var(--surface-muted);color:var(--ink);padding:7px 9px;font-size:12px;font-weight:800;cursor:pointer}
+.ledger-edit-button:hover{background:var(--mint)}
+.invoice-row .status-pill{white-space:nowrap}
+.finance-page .invoice-row .status-pill{background:var(--surface-muted);color:var(--muted)}
+.finance-page .invoice-row .status-pill{font-weight:800}
+.finance-page .invoice-row .status-pill.pending{background:var(--amber-soft);color:var(--amber)}
+.category-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.category-month-nav{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.category-month-nav strong{font-size:13px;white-space:nowrap}
+.category-month-nav button{width:30px;height:30px;border:0;border-radius:9px;background:var(--surface-muted);color:var(--ink);font-size:22px;line-height:1;cursor:pointer}
+.category-month-nav button:hover{background:var(--mint)}
+@media(max-width:680px){.finance-ledger-row{grid-template-columns:1fr auto;gap:5px}.finance-ledger-row>span:nth-child(3){display:none}.finance-ledger-row>strong{grid-column:2;grid-row:1/3}.finance-ledger-row .ledger-edit-button{grid-column:1;justify-self:start}.category-panel-head{display:grid;gap:10px}.category-month-nav{justify-content:space-between}.category-month-nav strong{font-size:14px}}
