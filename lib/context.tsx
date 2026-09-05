@@ -1,7 +1,7 @@
 'use client'
 
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
-import {blocks as seedBlocks, dailyHours as seedDailyHours, invoices as seedInvoices, metrics as seedMetrics, reimbursements as seedReimbursements, restDays as seedRestDays, settings as seedSettings, slipReasons as seedSlipReasons, sprints as seedSprints, tasks as seedTasks, transactions as seedTransactions, users, weeklyGoals as seedWeeklyGoals} from './mock/data'
+import {blocks as seedBlocks, dailyHours as seedDailyHours, invoices as seedInvoices, leads as seedLeads, metrics as seedMetrics, personalTransactions as seedPersonalTransactions, reimbursements as seedReimbursements, restDays as seedRestDays, settings as seedSettings, slipReasons as seedSlipReasons, sprints as seedSprints, tasks as seedTasks, transactions as seedTransactions, users, weeklyGoals as seedWeeklyGoals} from './mock/data'
 import {createAnonClient} from './supabase/browser'
 import {fetchTasks, removeTask, saveTask} from './data/tasks'
 import {fetchInvoices, fetchReimbursements, fetchSettings, fetchTransactions, removeLinkedTransaction, saveInvoice, saveReimbursement, saveSettings, saveTransaction} from './data/finance'
@@ -11,10 +11,12 @@ import {activateSprint, fetchSprints, saveSprint, saveSprintChanges} from './dat
 import {fetchSlipReasons, removeSlipReason, saveSlipReason} from './data/slip-reasons'
 import {fetchDailyHours, fetchRestDays, removeRestDay as removeRestDayEntry, saveDailyHours as saveDailyHoursEntry, saveRestDay as saveRestDayEntry} from './data/daily-hours'
 import {fetchWeeklyGoals, removeWeeklyGoal, saveWeeklyGoal} from './data/weekly-goals'
+import {fetchPersonalTransactions, removePersonalTransaction, savePersonalTransaction} from './data/personal-finance'
+import {fetchLeads, removeLead, saveLead} from './data/leads'
 import {personForEmail} from './auth/person'
 import {addDays} from './activity'
 import {todayISO} from './finance'
-import type {CalendarBlock, Category, DailyHours, Invoice, Metric, Owner, Person, Reimbursement, RestDay, Settings, Sprint, Task, TaskSlipReason, TaskStatus, Tier, Transaction, WeeklyGoal} from './types'
+import type {CalendarBlock, Category, DailyHours, Invoice, Lead, Metric, Owner, Person, PersonalTransaction, Reimbursement, RestDay, Settings, Sprint, Task, TaskSlipReason, TaskStatus, Tier, Transaction, WeeklyGoal} from './types'
 
 type CampState = {
   tasks: Task[]
@@ -27,6 +29,8 @@ type CampState = {
   dailyHours: DailyHours[]
   restDays: RestDay[]
   weeklyGoals: WeeklyGoal[]
+  personalTransactions: PersonalTransaction[]
+  leads: Lead[]
   sprints: Sprint[]
   settings: Settings
   activeSprintId: string
@@ -66,6 +70,12 @@ type CampState = {
   updateWeeklyGoal: (id: string, patch: Partial<WeeklyGoal>) => Promise<{error: string | null}>
   deleteWeeklyGoal: (id: string) => Promise<{error: string | null}>
   adjustWeeklyGoal: (id: string, delta: number) => Promise<{error: string | null}>
+  addPersonalTransaction: (entry: PersonalTransaction) => Promise<{error: string | null}>
+  updatePersonalTransaction: (id: string, patch: Partial<PersonalTransaction>) => Promise<{error: string | null}>
+  deletePersonalTransaction: (id: string) => Promise<{error: string | null}>
+  addLead: (lead: Lead) => Promise<{error: string | null}>
+  updateLead: (id: string, patch: Partial<Lead>) => Promise<{error: string | null}>
+  deleteLead: (id: string) => Promise<{error: string | null}>
   addBlock: (block: CalendarBlock) => Promise<{error: string | null}>
   updateBlock: (id: string, patch: Partial<CalendarBlock>) => Promise<{error: string | null}>
   deleteBlock: (id: string) => Promise<{error: string | null}>
@@ -116,6 +126,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
   const [dailyHours, setDailyHours] = useState<DailyHours[]>(seedDailyHours)
   const [restDays, setRestDays] = useState<RestDay[]>(seedRestDays)
   const [weeklyGoals, setWeeklyGoals] = useState<WeeklyGoal[]>(seedWeeklyGoals)
+  const [personalTransactions, setPersonalTransactions] = useState<PersonalTransaction[]>(seedPersonalTransactions)
+  const [leads, setLeads] = useState<Lead[]>(seedLeads)
   const [sprints, setSprints] = useState<Sprint[]>(seedSprints)
   const [settings, setSettings] = useState<Settings>(seedSettings)
   const [activeSprintId, setActiveSprintId] = useState('s1')
@@ -143,6 +155,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         setDailyHours(readStored('daily-hours', seedDailyHours))
         setRestDays(readStored('rest-days', seedRestDays))
         setWeeklyGoals(readStored('weekly-goals', seedWeeklyGoals))
+        setPersonalTransactions(readStored('personal-transactions', seedPersonalTransactions))
+        setLeads(readStored('leads', seedLeads))
         setSprints(readStored('sprints', seedSprints))
         const storedActiveSprint = readStored('active-sprint', 's1')
         if (typeof storedActiveSprint === 'string' && storedActiveSprint) setActiveSprintId(storedActiveSprint)
@@ -157,8 +171,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         setIsLoading(false)
         return
       }
-      const results = await Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchSettings(), fetchCalendarBlocks(), fetchSprints(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals()])
-      const [remoteTasks, remoteMetrics, remoteSlipReasons, remoteTransactions, remoteInvoices, remoteReimbursements, remoteSettings, remoteBlocks, remoteSprints, remoteDailyHours, remoteRestDays, remoteWeeklyGoals] = results
+      const results = await Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchSettings(), fetchCalendarBlocks(), fetchSprints(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals(), fetchPersonalTransactions(), fetchLeads()])
+      const [remoteTasks, remoteMetrics, remoteSlipReasons, remoteTransactions, remoteInvoices, remoteReimbursements, remoteSettings, remoteBlocks, remoteSprints, remoteDailyHours, remoteRestDays, remoteWeeklyGoals, remotePersonalTransactions, remoteLeads] = results
       if (!alive) return
       if (results.some((result) => result.error)) setLoadError('Some shared data could not load. Check the Supabase setup and try again.')
       if (remoteTasks.data) setTasks(remoteTasks.data)
@@ -172,6 +186,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       if (remoteDailyHours.data) setDailyHours(remoteDailyHours.data)
       if (remoteRestDays.data) setRestDays(remoteRestDays.data)
       if (remoteWeeklyGoals.data) setWeeklyGoals(remoteWeeklyGoals.data)
+      if (remotePersonalTransactions.data) setPersonalTransactions(remotePersonalTransactions.data)
+      if (remoteLeads.data) setLeads(remoteLeads.data)
       if (remoteSprints.data) {
         setSprints(remoteSprints.data)
         const active = remoteSprints.data.find((sprint) => sprint.isActive)
@@ -260,19 +276,21 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     save('daily-hours', dailyHours)
     save('rest-days', restDays)
     save('weekly-goals', weeklyGoals)
+    save('personal-transactions', personalTransactions)
+    save('leads', leads)
     save('sprints', sprints)
     save('active-sprint', activeSprintId)
     save('preview-person', previewPerson)
     save('settings', settings)
     save('review', review)
-  }, [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, sprints, settings, activeSprintId, currentPerson, previewPerson, review, hydrated])
+  }, [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, personalTransactions, leads, sprints, settings, activeSprintId, currentPerson, previewPerson, review, hydrated])
 
   useEffect(() => {
     const supabase = createAnonClient()
     if (!supabase) return
     let alive = true
     const reload = () => {
-      void Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchCalendarBlocks(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals()]).then(([taskResult, metricResult, slipReasonResult, transactionResult, invoiceResult, reimbursementResult, blockResult, dailyHoursResult, restDaysResult, weeklyGoalsResult]) => {
+      void Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchCalendarBlocks(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals(), fetchPersonalTransactions(), fetchLeads()]).then(([taskResult, metricResult, slipReasonResult, transactionResult, invoiceResult, reimbursementResult, blockResult, dailyHoursResult, restDaysResult, weeklyGoalsResult, personalTransactionsResult, leadsResult]) => {
         if (!alive) return
         if (taskResult.data) setTasks(taskResult.data)
         if (metricResult.data) setMetrics(metricResult.data)
@@ -284,6 +302,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         if (dailyHoursResult.data) setDailyHours(dailyHoursResult.data)
         if (restDaysResult.data) setRestDays(restDaysResult.data)
         if (weeklyGoalsResult.data) setWeeklyGoals(weeklyGoalsResult.data)
+        if (personalTransactionsResult.data) setPersonalTransactions(personalTransactionsResult.data)
+        if (leadsResult.data) setLeads(leadsResult.data)
       }).catch(() => { /* a realtime refresh can fail without taking down the app */ })
     }
     const channel = supabase
@@ -298,6 +318,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       .on('postgres_changes', {event: '*', schema: 'public', table: 'daily_hours'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'rest_days'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'weekly_goals'}, reload)
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'personal_transactions'}, reload)
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'leads'}, reload)
       .subscribe()
     return () => { alive = false; void supabase.removeChannel(channel) }
   }, [])
@@ -313,6 +335,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     dailyHours,
     restDays,
     weeklyGoals,
+    personalTransactions,
+    leads,
     sprints,
     settings,
     activeSprintId,
@@ -635,6 +659,48 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         return {error: null}
       })()
     },
+    addPersonalTransaction: async (entry) => {
+      const result = await savePersonalTransaction(entry)
+      if (result.error) return {error: 'Could not save personal money'}
+      setPersonalTransactions((items) => [entry, ...items])
+      return {error: null}
+    },
+    updatePersonalTransaction: async (id, patch) => {
+      const current = personalTransactions.find((entry) => entry.id === id)
+      if (!current) return {error: 'Personal entry not found'}
+      const next = {...current, ...patch}
+      const result = await savePersonalTransaction(next)
+      if (result.error) return {error: 'Could not update personal money'}
+      setPersonalTransactions((items) => items.map((entry) => entry.id === id ? next : entry))
+      return {error: null}
+    },
+    deletePersonalTransaction: async (id) => {
+      const result = await removePersonalTransaction(id)
+      if (result.error) return {error: 'Could not delete personal money'}
+      setPersonalTransactions((items) => items.filter((entry) => entry.id !== id))
+      return {error: null}
+    },
+    addLead: async (lead) => {
+      const result = await saveLead(lead)
+      if (result.error) return {error: 'Could not save lead'}
+      setLeads((items) => [lead, ...items])
+      return {error: null}
+    },
+    updateLead: async (id, patch) => {
+      const current = leads.find((lead) => lead.id === id)
+      if (!current) return {error: 'Lead not found'}
+      const next = {...current, ...patch, updatedAt: new Date().toISOString()}
+      const result = await saveLead(next)
+      if (result.error) return {error: 'Could not update lead'}
+      setLeads((items) => items.map((lead) => lead.id === id ? next : lead))
+      return {error: null}
+    },
+    deleteLead: async (id) => {
+      const result = await removeLead(id)
+      if (result.error) return {error: 'Could not delete lead'}
+      setLeads((items) => items.filter((lead) => lead.id !== id))
+      return {error: null}
+    },
     addBlock: async (block) => {
       const result = await saveCalendarBlock(block)
       if (result.error) return {error: 'Could not save calendar block'}
@@ -657,7 +723,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       return {error: null}
     },
     setReview: (valueToSave) => setReviewText(valueToSave),
-  }), [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, sprints, settings, activeSprintId, currentPerson, previewPerson, currentDate, view, authStatus, isLoading, loadError])
+  }), [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, personalTransactions, leads, sprints, settings, activeSprintId, currentPerson, previewPerson, currentDate, view, authStatus, isLoading, loadError])
 
   return <CampContext.Provider value={value}>{children}</CampContext.Provider>
 }

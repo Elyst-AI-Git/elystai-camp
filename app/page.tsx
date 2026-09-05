@@ -11,8 +11,9 @@ import type {Category, Owner, Person, SlipReason, Sprint, Task, TaskStatus, Tier
 import FinanceScreen from '../components/FinanceScreen'
 import CalendarScreen, {TodayCalendarStrip} from '../components/CalendarScreen'
 import SelectMenu from '../components/SelectMenu'
+import LeadsScreen from '../components/LeadsScreen'
 
-const navigation = ['Today', 'Calendar', 'Money', 'Review'] as const
+const navigation = ['Today', 'Calendar', 'Money', 'Leads', 'Review'] as const
 const personName: Record<Person, string> = {nihal: 'Nihal', shirin: 'Shirin'}
 const categories: Category[] = taskCategories
 type MutationResult = {error: string | null}
@@ -64,6 +65,7 @@ function NavIcon({item}: {item: NavigationItem}) {
   if (item === 'Today') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3l8.5 7.5"/><path d="M5.5 9.5V21h13V9.5M9.5 21v-6h5v6"/></svg>
   if (item === 'Calendar') return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M7.5 3.5v4M16.5 3.5v4M3.5 9.5h17M7.5 13h.01M12 13h.01M16.5 13h.01M7.5 16.5h.01M12 16.5h.01M16.5 16.5h.01"/></svg>
   if (item === 'Money') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 8.5c-.6-.6-1.4-.9-2.4-.9-1.4 0-2.4.7-2.4 1.8 0 2.7 5.2 1.1 5.2 3.8 0 1.1-1 1.9-2.5 1.9-1.1 0-2-.3-2.7-1M12 6.4v11.2"/></svg>
+  if (item === 'Leads') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M2.8 19.5c.4-3.4 2.2-5.2 5.2-5.2s4.8 1.8 5.2 5.2M14 15c2.9-.2 5 1.2 5.7 4.5"/></svg>
   return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2M4 12h1.5M18.5 12H20"/></svg>
 }
 
@@ -107,7 +109,7 @@ function Shell() {
   if (isRemoteConfigured && authStatus === 'error') return <main className="app-status"><p className="eyebrow">Camp</p><h1>Workspace unavailable</h1><p>Camp could not verify your sign-in. Refresh and try again.</p>{loadError && <small>{loadError}</small>}</main>
   if (isRemoteConfigured && authStatus === 'signed-out') return null
   const liveDate = formatDate(currentDate, {weekday: 'long', day: 'numeric', month: 'long'})
-  return <div className="shell">{loadError && <div className="data-warning" role="status">{loadError}</div>}<aside className="side"><div className="logo"><div className="logo-main"><img src="/icon.svg" alt=""/><span>camp</span></div><div className="logo-by"><span>by</span><img src="/brand/elyst-ai-wordmark.png" alt="Elyst AI"/></div></div><nav>{navigation.map((item) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}><span className="nav-icon"><NavIcon item={item}/></span>{item}</button>)}</nav><ProfileIdentity/></aside><main><header className="top"><div><p className="eyebrow">Elyst AI · {liveDate}</p><h1>{view}</h1></div><div className="top-actions">{(view === 'Today' || view === 'Review') && <SprintPicker/>}<div className="mobile-profile"><ProfileIdentity compact/></div></div></header>{view === 'Today' ? <Today/> : view === 'Calendar' ? <CalendarScreen/> : view === 'Money' ? <FinanceScreen/> : <ReviewScreen/>}</main><nav className="bottom-nav">{navigation.map((item) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}>{item}</button>)}</nav></div>
+  return <div className="shell">{loadError && <div className="data-warning" role="status">{loadError}</div>}<aside className="side"><div className="logo"><div className="logo-main"><img src="/icon.svg" alt=""/><span>camp</span></div><div className="logo-by"><span>by</span><img src="/brand/elyst-ai-wordmark.png" alt="Elyst AI"/></div></div><nav>{navigation.map((item) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}><span className="nav-icon"><NavIcon item={item}/></span>{item}</button>)}</nav><ProfileIdentity/></aside><main><header className="top"><div><p className="eyebrow">Elyst AI · {liveDate}</p><h1>{view}</h1></div><div className="top-actions">{(view === 'Today' || view === 'Review') && <SprintPicker/>}<div className="mobile-profile"><ProfileIdentity compact/></div></div></header>{view === 'Today' ? <Today/> : view === 'Calendar' ? <CalendarScreen/> : view === 'Money' ? <FinanceScreen/> : view === 'Leads' ? <LeadsScreen/> : <ReviewScreen/>}</main><nav className="bottom-nav">{navigation.map((item) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}>{item}</button>)}</nav></div>
 }
 
 function TaskDayNavigator({date, today, onChange}: {date: string; today: string; onChange: (date: string) => void}) {

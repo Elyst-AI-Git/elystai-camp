@@ -19,3 +19,7 @@ export interface Settings { openingBalance:number; currentBalance?:number; curre
 export interface DailyHours { id:string; person:Person; date:string; hours:number; updatedAt?:string }
 export interface RestDay { id:string; person:Person; date:string }
 export interface WeeklyGoal { id:string; sprintId:string; person:Person; title:string; description?:string; color:string; target?:number; value:number; weekStart?:string }
+export type PersonalFinanceCategory = 'Salary'|'Food (Lunch)'|'Food (Dinner)'|'Food (Breakfast)'|'Food (Tea/Snacks)'|'Travel'|'Rent'|'Mess'|'Groceries'|'Cosmetics'|'Health'|'Savings'
+export interface PersonalTransaction { id:string; person:Person; date:string; direction:'in'|'out'; amount:number; currency:'INR'|'AED'|'USD'; category:PersonalFinanceCategory; description:string; createdBy?:Person }
+export type LeadStage = 'new'|'contacted'|'qualified'|'proposal'|'won'|'lost'
+export interface Lead { id:string; company:string; contactName?:string; stage:LeadStage; owner:Person; source?:string; nextAction:string; followUpDate?:string; estimatedValue?:number; notes?:string; createdAt?:string; updatedAt?:string }
