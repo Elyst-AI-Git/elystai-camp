@@ -344,3 +344,20 @@
 .review-panel .review-person>header h2{font-size:18px}
 .review-task-list{min-width:0}
 @media(max-width:1000px){.review-main-grid{grid-template-columns:1fr}}
+
+/* Task history keeps the default surface on today while making the last seven
+   days easy to inspect without turning old work into an accidental edit form. */
+.task-day-nav{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:16px 0;padding:15px 18px;border-radius:18px;background:rgba(255,255,255,.78);box-shadow:var(--shadow)}
+.task-day-nav>div{display:grid;gap:3px;min-width:0;text-align:center}
+.task-day-nav .eyebrow{margin:0;font-size:10px}
+.task-day-nav strong{font:900 21px/1 var(--font-display);letter-spacing:-.04em}
+.task-day-nav span{color:var(--muted);font-size:12px}
+.task-day-arrow{display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:12px;background:var(--surface-muted);color:var(--ink);font-size:26px;line-height:1;cursor:pointer}
+.task-day-arrow:hover{background:var(--mint)}
+.task-day-arrow:disabled{opacity:.35;cursor:not-allowed}
+.history-lock{display:block;margin:8px 0 0;color:var(--muted);font-size:12px}
+.task-row.read-only{opacity:.82}
+.task-row.read-only .checkbox{cursor:not-allowed}
+.task-row.read-only .avatar{filter:saturate(.8)}
+.task-row.status-only .checkbox{box-shadow:0 0 0 2px rgba(163,217,119,.3)}
+@media(max-width:680px){.task-day-nav{margin:12px 0;padding:13px 14px}.task-day-nav strong{font-size:18px}.task-day-nav span{font-size:11px}.task-day-arrow{width:34px;height:34px;font-size:23px}}

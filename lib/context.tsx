@@ -12,6 +12,7 @@ import {fetchSlipReasons, removeSlipReason, saveSlipReason} from './data/slip-re
 import {fetchDailyHours, fetchRestDays, removeRestDay as removeRestDayEntry, saveDailyHours as saveDailyHoursEntry, saveRestDay as saveRestDayEntry} from './data/daily-hours'
 import {fetchWeeklyGoals, removeWeeklyGoal, saveWeeklyGoal} from './data/weekly-goals'
 import {personForEmail} from './auth/person'
+import {addDays} from './activity'
 import {todayISO} from './finance'
 import type {CalendarBlock, Category, DailyHours, Invoice, Metric, Owner, Person, Reimbursement, RestDay, Settings, Sprint, Task, TaskSlipReason, TaskStatus, Tier, Transaction, WeeklyGoal} from './types'
 
@@ -88,6 +89,18 @@ function mondayISO(value: string): string {
   const day = date.getDay()
   date.setDate(date.getDate() - (day === 0 ? 6 : day - 1))
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function isTaskEditable(day: string, currentDate: string): boolean {
+  return day === currentDate || day === addDays(currentDate, -1)
+}
+
+function isTaskTargetAllowed(day: string, currentDate: string): boolean {
+  return day.slice(0, 10) >= addDays(currentDate, -1)
+}
+
+function isStatusOnlyPatch(patch: Partial<Task>): boolean {
+  return Object.keys(patch).every((key) => key === 'status')
 }
 
 export function CampProvider({children}: {children: React.ReactNode}) {
@@ -343,6 +356,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     toggleTask: async (id) => {
       const current = tasks.find((task) => task.id === id)
       if (!current) return {error: 'Task not found'}
+      if (!isTaskEditable(current.day, currentDate)) return {error: 'Only today and yesterday’s tasks can be updated'}
       const next = {...current, status: current.status === 'done' ? 'open' as TaskStatus : 'done' as TaskStatus, completedAt: current.status === 'done' ? undefined : new Date().toISOString(), completedBy: current.status === 'done' ? undefined : currentPerson}
       const result = await saveTask(next)
       if (result.error) return {error: 'Could not save task'}
@@ -350,6 +364,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       return {error: null}
     },
     addTask: async (task) => {
+      if (!isTaskTargetAllowed(task.day, currentDate)) return {error: 'Tasks older than yesterday are read-only'}
       if (task.tier === 'must' && (task.owner === 'nihal' || task.owner === 'shirin') && tasks.filter((item) => item.id !== task.id && item.sprintId === task.sprintId && item.owner === task.owner && item.day === task.day && item.tier === 'must').length >= 5) return {error: 'Musts are capped at five for that day'}
       const result = await saveTask(task)
       if (result.error) return {error: 'Could not save task'}
@@ -359,7 +374,10 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     updateTask: async (id, patch) => {
       const current = tasks.find((task) => task.id === id)
       if (!current) return {error: 'Task not found'}
+      if (!isTaskEditable(current.day, currentDate)) return {error: 'Only today and yesterday’s tasks can be updated'}
+      if (current.day === addDays(currentDate, -1) && !isStatusOnlyPatch(patch)) return {error: 'Only completion can be changed for yesterday’s tasks'}
       const merged = {...current, ...patch}
+      if (!isTaskTargetAllowed(merged.day, currentDate)) return {error: 'Tasks older than yesterday are read-only'}
       const moved = merged.day !== current.day
       if (moved && current.tier === 'must' && !patch.slipReason) return {error: 'Choose a slip reason before moving a Must'}
       const next = merged.status === 'done' && current.status !== 'done'
@@ -387,6 +405,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     deleteTask: async (id) => {
       const current = tasks.find((task) => task.id === id)
       if (!current) return {error: 'Task not found'}
+      if (!isTaskEditable(current.day, currentDate)) return {error: 'Only today and yesterday’s tasks can be updated'}
+      if (current.day === addDays(currentDate, -1)) return {error: 'Only completion can be changed for yesterday’s tasks'}
       const result = await removeTask(id)
       if (result.error) return {error: 'Could not delete task'}
       setTasks((items) => items.filter((task) => task.id !== id))
@@ -396,6 +416,9 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     moveTask: async (id, day, slip) => {
       const current = tasks.find((task) => task.id === id)
       if (!current) return {error: 'Task not found'}
+      if (!isTaskEditable(current.day, currentDate)) return {error: 'Only today and yesterday’s tasks can be updated'}
+      if (current.day === addDays(currentDate, -1)) return {error: 'Only completion can be changed for yesterday’s tasks'}
+      if (!isTaskTargetAllowed(day, currentDate)) return {error: 'Tasks older than yesterday are read-only'}
       if (current.day !== day && current.tier === 'must' && !slip) return {error: 'Choose a slip reason before moving a Must'}
       if (current.day === day) return {error: null}
       if (current.tier === 'must' && (current.owner === 'nihal' || current.owner === 'shirin') && tasks.filter((task) => task.id !== id && task.sprintId === current.sprintId && task.owner === current.owner && task.day === day && task.tier === 'must').length >= 5) return {error: 'Musts are capped at five for that day'}

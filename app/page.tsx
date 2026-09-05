@@ -102,8 +102,19 @@ function Shell() {
   return <div className="shell">{loadError && <div className="data-warning" role="status">{loadError}</div>}<aside className="side"><div className="logo"><div className="logo-main"><img src="/icon.svg" alt=""/><span>camp</span></div><div className="logo-by"><span>by</span><img src="/brand/elyst-ai-wordmark.png" alt="Elyst AI"/></div></div><nav>{navigation.map((item, index) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}><span>{icons[index]}</span>{item}</button>)}</nav><ProfileIdentity/></aside><main><header className="top"><div><p className="eyebrow">Elyst AI · {liveDate}</p><h1>{view}</h1></div><div className="top-actions">{(view === 'Today' || view === 'Review') && <SprintPicker/>}<div className="mobile-profile"><ProfileIdentity compact/></div></div></header>{view === 'Today' ? <Today/> : view === 'Calendar' ? <CalendarScreen/> : view === 'Money' ? <FinanceScreen/> : <ReviewScreen/>}</main><nav className="bottom-nav">{navigation.map((item) => <button type="button" className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}>{item}</button>)}</nav></div>
 }
 
+function TaskDayNavigator({date, today, onChange}: {date: string; today: string; onChange: (date: string) => void}) {
+  const oldest = addDays(today, -6)
+  const canPrevious = date > oldest
+  const canNext = date < today
+  const daysAgo = Math.max(0, Math.round((new Date(`${today}T12:00:00`).getTime() - new Date(`${date}T12:00:00`).getTime()) / 86400000))
+  const label = date === today ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`
+  return <section className="task-day-nav" aria-label="Task day history"><button type="button" className="task-day-arrow" aria-label="Previous task day" disabled={!canPrevious} onClick={() => onChange(addDays(date, -1))}>‹</button><div><p className="eyebrow">Task history · last 7 days</p><strong>{formatDate(date, {weekday: 'long', day: 'numeric', month: 'short'})}</strong><span>{label}{date === today ? ' · updates open' : ' · read-only'}</span></div><button type="button" className="task-day-arrow" aria-label="Next task day" disabled={!canNext} onClick={() => onChange(addDays(date, 1))}>›</button></section>
+}
+
 function Today() {
   const {tasks, metrics, transactions, invoices, settings, sprints, activeSprintId, currentDate, previewPerson, setView} = useCamp()
+  const [taskDate, setTaskDate] = useState(currentDate)
+  useEffect(() => { setTaskDate(currentDate) }, [currentDate])
   const sprint = sprints.find((item) => item.id === activeSprintId) ?? sprints.find((item) => item.isActive) ?? sprints[0]
   if (!sprint) return <section className="review-empty"><p className="eyebrow">Today</p><h2>No active sprint yet.</h2></section>
   const calls = metrics.filter((metric) => metric.sprintId === sprint.id && metric.key === 'calls_booked').reduce((sum, metric) => sum + metric.value, 0)
@@ -126,7 +137,7 @@ function Today() {
       ? 'Calendar'
       : 'Today'
   const laneOrder: Person[] = previewPerson === 'shirin' ? ['shirin', 'nihal'] : ['nihal', 'shirin']
-  return <><section className="number-hero"><div className="hero-copy"><div className="number"><strong>{calls}</strong><span>/ {sprint.targetCalls}</span></div><h2>Audit calls booked</h2><p className="hero-sprint">{sprint.name}</p><p className="hero-week">Week ends Sunday · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</p></div><div className="hero-right"><div className="hero-progress"><div className="arc" style={{'--progress': `${sprint.targetCalls ? Math.min(100, calls / sprint.targetCalls * 100) : 0}%`} as React.CSSProperties}><span>{calls}/{sprint.targetCalls}</span></div><p className="hero-goal">Goal: {sprint.goal}</p></div><CallLogger sprintId={sprint.id} calls={calls}/></div></section><section className={`insight ${insight[0]}`}><span className="insight-star">✦</span><div><p className="eyebrow">A useful nudge</p><h3>{insight[1]}</h3></div><button type="button" className="button dark" onClick={() => setView(insightTarget)}>{insight[2]} ›</button></section><section className="lane-wrap">{laneOrder.map((person) => <Lane person={person} sprint={sprint} key={person}/>)}</section><TodayCalendarStrip/><WeeklyKpiPanel/></>
+  return <><section className="number-hero"><div className="hero-copy"><div className="number"><strong>{calls}</strong><span>/ {sprint.targetCalls}</span></div><h2>Audit calls booked</h2><p className="hero-sprint">{sprint.name}</p><p className="hero-week">Week ends Sunday · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</p></div><div className="hero-right"><div className="hero-progress"><div className="arc" style={{'--progress': `${sprint.targetCalls ? Math.min(100, calls / sprint.targetCalls * 100) : 0}%`} as React.CSSProperties}><span>{calls}/{sprint.targetCalls}</span></div><p className="hero-goal">Goal: {sprint.goal}</p></div><CallLogger sprintId={sprint.id} calls={calls}/></div></section><section className={`insight ${insight[0]}`}><span className="insight-star">✦</span><div><p className="eyebrow">A useful nudge</p><h3>{insight[1]}</h3></div><button type="button" className="button dark" onClick={() => setView(insightTarget)}>{insight[2]} ›</button></section><TaskDayNavigator date={taskDate} today={currentDate} onChange={setTaskDate}/><section className="lane-wrap">{laneOrder.map((person) => <Lane person={person} sprint={sprint} date={taskDate} key={person}/>)}</section><TodayCalendarStrip/><WeeklyKpiPanel/></>
 }
 
 function CallLogger({sprintId, calls}: {sprintId: string; calls: number}) {
@@ -151,31 +162,105 @@ function CallLogger({sprintId, calls}: {sprintId: string; calls: number}) {
   return <div className="call-logger"><span className="call-label">Book calls</span><div className="stepper call-stepper"><button type="button" aria-label="Remove booked call" disabled={busy || calls === 0} onClick={() => void adjust(-1)}>−</button><strong>{calls}</strong><button type="button" aria-label="Add booked call" disabled={busy} onClick={() => void adjust(1)}>+</button></div><small>{message || `As ${currentPerson === 'nihal' ? 'Nihal' : 'Shirin'}`}</small></div>
 }
 
-function Lane({person, sprint}: {person: Person; sprint: Sprint}) {
+function Lane({person, sprint, date}: {person: Person; sprint: Sprint; date: string}) {
   const {tasks, metrics, invoices, restDays, dailyHours, currentDate, previewPerson, setPreviewPerson, toggleTask, addTask, updateTask, deleteTask, saveDailyHours, toggleRestDay} = useCamp()
-  const [adding, setAdding] = useState(false); const [busy, setBusy] = useState(false); const [hoursBusy, setHoursBusy] = useState(false); const [restBusy, setRestBusy] = useState(false); const [message, setMessage] = useState(''); const [addTier, setAddTier] = useState<Tier>('must'); const [addCategory, setAddCategory] = useState<Category>('services')
-  const [addDay, setAddDay] = useState(currentDate)
-  useEffect(() => { setAddDay(currentDate) }, [currentDate])
-  const personTasks = tasks.filter((task) => task.sprintId === sprint.id && task.day === currentDate && task.owner === person)
-  const must = personTasks.filter((task) => task.tier === 'must'); const stretch = personTasks.filter((task) => task.tier === 'stretch'); const done = must.filter((task) => task.status === 'done').length; const totalDone = personTasks.filter((task) => task.status === 'done').length
-  const state = characterState({tasks, restDays, metrics, invoices, sprint, person, today: currentDate}); const isRestDay = restDays.some((entry) => entry.person === person && entry.date === currentDate); const existingHours = dailyHours.find((entry) => entry.person === person && entry.date === currentDate)?.hours
-  const [hoursDraft, setHoursDraft] = useState(existingHours === undefined ? '' : String(existingHours)); useEffect(() => { setHoursDraft(existingHours === undefined ? '' : String(existingHours)) }, [existingHours])
-  async function add(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setMessage(''); const form = new FormData(event.currentTarget); const title = String(form.get('title') ?? '').trim(); if (!title) { setMessage('Give this task a title.'); return }; let tier = addTier; const targetMustCount = tasks.filter((task) => task.sprintId === sprint.id && task.owner === person && task.day === addDay && task.tier === 'must').length; if (tier === 'must' && targetMustCount >= 5) { if (!window.confirm('Musts are capped at five for that day. Add this task as Stretch instead?')) return; tier = 'stretch' }; setBusy(true); try { const result = await addTask({id: crypto.randomUUID(), sprintId: sprint.id, owner: person, title, day: addDay, tier, category: addCategory, status: 'open', carriedCount: 0}); if (result.error) { setMessage(result.error); return }; setAdding(false) } catch { setMessage('Could not save task') } finally { setBusy(false) } }
-  async function saveHours(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setMessage(''); const hours = Number(hoursDraft); if (!Number.isFinite(hours) || hours < 0 || hours > 24) { setMessage('Hours must be between 0 and 24.'); return }; setHoursBusy(true); try { const result = await saveDailyHours(person, currentDate, hours); if (result.error) setMessage(result.error); else setMessage('Hours saved') } catch { setMessage('Could not save daily hours') } finally { setHoursBusy(false) } }
-  async function toggleRest() { setRestBusy(true); setMessage(''); try { const result = await toggleRestDay(person, currentDate); if (result.error) setMessage(result.error); else setMessage(isRestDay ? 'Rest day removed' : 'Rest day marked') } catch { setMessage('Could not update rest day') } finally { setRestBusy(false) } }
+  const editableDay = date === currentDate || date === addDays(currentDate, -1)
+  const detailsEditable = date === currentDate
+  const [adding, setAdding] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [hoursBusy, setHoursBusy] = useState(false)
+  const [restBusy, setRestBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [addTier, setAddTier] = useState<Tier>('must')
+  const [addCategory, setAddCategory] = useState<Category>('services')
+  const [addDay, setAddDay] = useState(date)
+  useEffect(() => { setAddDay(date); setAdding(false); setMessage('') }, [date])
+
+  const personTasks = tasks.filter((task) => task.sprintId === sprint.id && task.day === date && task.owner === person)
+  const must = personTasks.filter((task) => task.tier === 'must')
+  const stretch = personTasks.filter((task) => task.tier === 'stretch')
+  const done = must.filter((task) => task.status === 'done').length
+  const totalDone = personTasks.filter((task) => task.status === 'done').length
+  const state = characterState({tasks, restDays, metrics, invoices, sprint, person, today: date})
+  const isRestDay = restDays.some((entry) => entry.person === person && entry.date === date)
+  const existingHours = dailyHours.find((entry) => entry.person === person && entry.date === date)?.hours
+  const [hoursDraft, setHoursDraft] = useState(existingHours === undefined ? '' : String(existingHours))
+  useEffect(() => { setHoursDraft(existingHours === undefined ? '' : String(existingHours)) }, [existingHours])
+
+  async function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setMessage('')
+    const form = new FormData(event.currentTarget)
+    const title = String(form.get('title') ?? '').trim()
+    if (!title) { setMessage('Give this task a title.'); return }
+    let tier = addTier
+    const targetMustCount = tasks.filter((task) => task.sprintId === sprint.id && task.owner === person && task.day === addDay && task.tier === 'must').length
+    if (tier === 'must' && targetMustCount >= 5) {
+      if (!window.confirm('Musts are capped at five for that day. Add this task as Stretch instead?')) return
+      tier = 'stretch'
+    }
+    setBusy(true)
+    try {
+      const result = await addTask({id: crypto.randomUUID(), sprintId: sprint.id, owner: person, title, day: addDay, tier, category: addCategory, status: 'open', carriedCount: 0})
+      if (result.error) { setMessage(result.error); return }
+      setAdding(false)
+    } catch { setMessage('Could not save task') } finally { setBusy(false) }
+  }
+
+  async function saveHours(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setMessage('')
+    if (!editableDay) { setMessage('History is read-only.'); return }
+    const hours = Number(hoursDraft)
+    if (!Number.isFinite(hours) || hours < 0 || hours > 24) { setMessage('Hours must be between 0 and 24.'); return }
+    setHoursBusy(true)
+    try {
+      const result = await saveDailyHours(person, date, hours)
+      if (result.error) setMessage(result.error); else setMessage('Hours saved')
+    } catch { setMessage('Could not save daily hours') } finally { setHoursBusy(false) }
+  }
+
+  async function toggleRest() {
+    if (!editableDay) { setMessage('History is read-only.'); return }
+    setRestBusy(true); setMessage('')
+    try {
+      const result = await toggleRestDay(person, date)
+      if (result.error) setMessage(result.error); else setMessage(isRestDay ? 'Rest day removed' : 'Rest day marked')
+    } catch { setMessage('Could not update rest day') } finally { setRestBusy(false) }
+  }
+
   const urgent = personTasks.filter((task) => task.status === 'waiting' || task.status === 'blocked')
   const priorityTasks = [...urgent, ...must.filter((task) => task.status !== 'waiting' && task.status !== 'blocked'), ...stretch.filter((task) => task.status !== 'waiting' && task.status !== 'blocked')]
   const activeDay = !isRestDay
-  return <section className={`lane ${previewPerson === person ? 'selected' : 'secondary'}`}><div className={`lane-top ${activeDay ? 'active-day' : 'inactive-day'}`} role="button" tabIndex={0} aria-label={`View ${personName[person]}'s profile`} onClick={() => setPreviewPerson(person)} onKeyDown={(event) => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); setPreviewPerson(person)}}}><Character person={person} state={state}/><div><p className="eyebrow">{personName[person]}</p><h2>{done} / {must.length} important</h2><small>{totalDone} / {must.length + stretch.length} total tasks</small></div><span className={`rest-dot ${isRestDay ? 'is-rest' : ''}`} title={isRestDay ? 'Rest day' : 'Work day'}>●</span></div><div className="lane-meta"><form className="hours-form" noValidate onSubmit={(event) => void saveHours(event)}><label>Hours today<div className="hours-stepper"><button type="button" aria-label={`Decrease ${personName[person]} hours`} disabled={hoursBusy || Number(hoursDraft || 0) <= 0} onClick={() => setHoursDraft(String(Math.max(0, Number(hoursDraft || 0) - .5)))}>−</button><input aria-label={`${personName[person]} hours today`} inputMode="decimal" type="number" min="0" max="24" step="0.5" value={hoursDraft} onChange={(event) => setHoursDraft(event.target.value)} placeholder="0"/><button type="button" aria-label={`Increase ${personName[person]} hours`} disabled={hoursBusy || Number(hoursDraft || 0) >= 24} onClick={() => setHoursDraft(String(Math.min(24, Number(hoursDraft || 0) + .5)))}>+</button></div></label><button type="submit" className="text-button" disabled={hoursBusy}>{hoursBusy ? 'Saving…' : 'Save hours'}</button></form><button type="button" className="rest-toggle" disabled={restBusy} onClick={() => void toggleRest()}>{restBusy ? 'Saving…' : isRestDay ? 'Remove rest day' : 'Mark rest day'}</button></div><div className="lane-tasks">{priorityTasks.map((task) => <TaskRow key={task.id} task={task} tasks={tasks} toggle={() => toggleTask(task.id)} update={(patch) => updateTask(task.id, patch)} remove={() => deleteTask(task.id)}/>)}</div>{adding ? <form className="inline-form" noValidate onSubmit={(event) => void add(event)}><input name="title" autoFocus placeholder="What needs doing?"/><SelectMenu value={addDay} options={sprintDayOptions(sprint, currentDate)} ariaLabel={`${personName[person]} task day`} name="day" onChange={setAddDay}/><SelectMenu value={addTier} options={[{value:'must',label:'Important'},{value:'stretch',label:'Stretch'}]} ariaLabel={`${personName[person]} task type`} name="tier" onChange={(value) => setAddTier(value)}/><SelectMenu value={addCategory} options={categories.map((category) => ({value:category,label:categoryLabel(category)}))} ariaLabel={`${personName[person]} task category`} name="category" onChange={(value) => setAddCategory(value)}/><button type="submit" className="button dark" disabled={busy}>{busy ? 'Adding…' : 'Add'}</button></form> : <button type="button" className="add-line" onClick={() => {setMessage('');setAdding(true)}}>+ Add task</button>}{message && <small className="task-error" role="status">{message}</small>}<details className="lane-details"><summary>Work hours</summary><ConsistencyHeatmap person={person} tasks={tasks} restDays={restDays} currentDate={currentDate}/><PrivateHours person={person} dailyHours={dailyHours} currentDate={currentDate}/></details></section>
+  const hoursLabel = date === currentDate ? 'Hours today' : `Hours on ${formatDate(date, {weekday: 'short', day: 'numeric', month: 'short'})}`
+  const availableTaskDays = sprintDayOptions(sprint, date).filter((option) => option.value >= addDays(currentDate, -1))
+
+  return <section className={`lane ${previewPerson === person ? 'selected' : 'secondary'}`}>
+    <div className={`lane-top ${activeDay ? 'active-day' : 'inactive-day'}`} role="button" tabIndex={0} aria-label={`View ${personName[person]}'s profile`} onClick={() => setPreviewPerson(person)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPreviewPerson(person) } }}>
+      <Character person={person} state={state}/>
+      <div><p className="eyebrow">{personName[person]}</p><h2>{done} / {must.length} important</h2><small>{totalDone} / {must.length + stretch.length} total tasks</small></div>
+      <span className={`rest-dot ${isRestDay ? 'is-rest' : ''}`} title={isRestDay ? 'Rest day' : 'Work day'}>●</span>
+    </div>
+    <div className="lane-meta">
+      <form className="hours-form" noValidate onSubmit={(event) => void saveHours(event)}>
+        <label>{hoursLabel}<div className="hours-stepper"><button type="button" aria-label={`Decrease ${personName[person]} hours`} disabled={!editableDay || hoursBusy || Number(hoursDraft || 0) <= 0} onClick={() => setHoursDraft(String(Math.max(0, Number(hoursDraft || 0) - .5)))}>−</button><input aria-label={`${personName[person]} hours`} inputMode="decimal" type="number" min="0" max="24" step="0.5" value={hoursDraft} onChange={(event) => setHoursDraft(event.target.value)} placeholder="0" disabled={!editableDay || hoursBusy}/><button type="button" aria-label={`Increase ${personName[person]} hours`} disabled={!editableDay || hoursBusy || Number(hoursDraft || 0) >= 24} onClick={() => setHoursDraft(String(Math.min(24, Number(hoursDraft || 0) + .5)))}>+</button></div></label>
+        <button type="submit" className="text-button" disabled={!editableDay || hoursBusy}>{hoursBusy ? 'Saving…' : 'Save hours'}</button>
+      </form>
+      <button type="button" className="rest-toggle" disabled={!editableDay || restBusy} onClick={() => void toggleRest()}>{restBusy ? 'Saving…' : isRestDay ? 'Remove rest day' : 'Mark rest day'}</button>
+    </div>
+    <div className="lane-tasks">{priorityTasks.map((task) => <TaskRow key={task.id} task={task} tasks={tasks} editable={editableDay} detailsEditable={detailsEditable} toggle={() => toggleTask(task.id)} update={(patch) => updateTask(task.id, patch)} remove={() => deleteTask(task.id)}/>)}</div>
+    {detailsEditable ? adding ? <form className="inline-form" noValidate onSubmit={(event) => void add(event)}><input name="title" autoFocus placeholder="What needs doing?"/><SelectMenu value={addDay} options={availableTaskDays} ariaLabel={`${personName[person]} task day`} name="day" onChange={setAddDay}/><SelectMenu value={addTier} options={[{value:'must',label:'Important'},{value:'stretch',label:'Stretch'}]} ariaLabel={`${personName[person]} task type`} name="tier" onChange={(value) => setAddTier(value)}/><SelectMenu value={addCategory} options={categories.map((category) => ({value:category,label:categoryLabel(category)}))} ariaLabel={`${personName[person]} task category`} name="category" onChange={(value) => setAddCategory(value)}/><button type="submit" className="button dark" disabled={busy}>{busy ? 'Adding…' : 'Add'}</button></form> : <button type="button" className="add-line" onClick={() => { setMessage(''); setAdding(true) }}>+ Add task</button> : <small className="history-lock">{editableDay ? 'Yesterday is status-only. You can update completion, but not task details.' : 'History is read-only. Only today and yesterday can be updated.'}</small>}
+    {message && <small className="task-error" role="status">{message}</small>}
+    <details className="lane-details"><summary>Work hours</summary><ConsistencyHeatmap person={person} tasks={tasks} restDays={restDays} currentDate={currentDate}/><PrivateHours person={person} dailyHours={dailyHours} currentDate={currentDate}/></details>
+  </section>
 }
 
-function TaskRow({task, tasks, toggle, update, remove}: {task: Task; tasks: Task[]; toggle: () => Promise<MutationResult>; update: (patch: Partial<Task>) => Promise<MutationResult>; remove: () => Promise<MutationResult>}) {
+function TaskRow({task, tasks, editable = true, detailsEditable, toggle, update, remove}: {task: Task; tasks: Task[]; editable?: boolean; detailsEditable?: boolean; toggle: () => Promise<MutationResult>; update: (patch: Partial<Task>) => Promise<MutationResult>; remove: () => Promise<MutationResult>}) {
   const [menu, setMenu] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editing, setEditing] = useState(false); const [slipPending, setSlipPending] = useState<Partial<Task> | null>(null)
   async function run(action: () => Promise<MutationResult>): Promise<boolean> { setBusy(true); setMessage(''); try { const result = await action(); if (result.error) { setMessage(result.error); return false }; setMenu(false); return true } catch { setMessage('Could not save task'); return false } finally { setBusy(false) } }
   async function saveEdit(patch: Partial<Task>) { if (await run(() => update(patch))) setEditing(false) }
   async function confirmMove(reason: SlipReason) { if (!slipPending) return; const patch = {...slipPending, slipReason: reason}; setSlipPending(null); if (await run(() => update(patch))) setEditing(false) }
   const blockedTitle = task.blockedBy ? tasks.find((item) => item.id === task.blockedBy)?.title : undefined
-  return <article className={`task-row ${task.status} ${task.carriedCount >= 2 ? 'carried' : ''}`}><button type="button" className="checkbox" disabled={busy} onClick={() => void run(toggle)}>{task.status === 'done' ? '✓' : ''}</button><div className="task-copy"><b>{task.title}</b><small>{task.tier === 'must' ? 'Important' : 'Stretch'} · {categoryLabel(task.category)} {task.waitingOn && `· waiting on ${task.waitingOn}`}</small>{task.status === 'blocked' && <em>Blocked · {blockedTitle ?? task.waitingOn ?? 'needs a handoff'}</em>}{task.carriedCount >= 2 && <em>moved {task.carriedCount}×</em>}{message && <small className="task-error" role="status">{message}</small>}</div><Avatar owner={task.owner}/><button type="button" className="more" disabled={busy} aria-label={`Actions for ${task.title}`} onClick={() => setMenu((open) => !open)}>•••</button>{menu && <div className="task-menu"><button type="button" disabled={busy} onClick={() => {setMenu(false);setEditing(true)}}>Edit task</button><button type="button" disabled={busy} onClick={() => void run(remove)}>Delete</button></div>}{editing && <TaskEditor task={task} tasks={tasks} busy={busy} onClose={() => setEditing(false)} onRequestMove={(patch) => setSlipPending(patch)} onSave={(patch) => void saveEdit(patch)}/>} {slipPending && <SlipPicker busy={busy} onPick={(reason) => void confirmMove(reason)} onClose={() => setSlipPending(null)}/>}</article>
+  const canEditDetails = detailsEditable ?? editable
+  return <article className={`task-row ${task.status} ${task.carriedCount >= 2 ? 'carried' : ''} ${editable ? '' : 'read-only'} ${editable && !canEditDetails ? 'status-only' : ''}`} title={!editable ? 'History is read-only' : !canEditDetails ? 'Yesterday: completion only' : undefined}><button type="button" className="checkbox" disabled={busy || !editable} aria-label={editable ? `Mark ${task.title} ${task.status === 'done' ? 'open' : 'done'}` : `${task.title} is read-only`} onClick={() => void run(toggle)}>{task.status === 'done' ? '✓' : ''}</button><div className="task-copy"><b>{task.title}</b><small>{task.tier === 'must' ? 'Important' : 'Stretch'} · {categoryLabel(task.category)} {task.waitingOn && `· waiting on ${task.waitingOn}`}</small>{task.status === 'blocked' && <em>Blocked · {blockedTitle ?? task.waitingOn ?? 'needs a handoff'}</em>}{task.carriedCount >= 2 && <em>moved {task.carriedCount}×</em>}{message && <small className="task-error" role="status">{message}</small>}</div><Avatar owner={task.owner}/>{canEditDetails && <button type="button" className="more" disabled={busy} aria-label={`Actions for ${task.title}`} onClick={() => setMenu((open) => !open)}>•••</button>}{canEditDetails && menu && <div className="task-menu"><button type="button" disabled={busy} onClick={() => {setMenu(false);setEditing(true)}}>Edit task</button><button type="button" disabled={busy} onClick={() => void run(remove)}>Delete</button></div>}{canEditDetails && editing && <TaskEditor task={task} tasks={tasks} busy={busy} onClose={() => setEditing(false)} onRequestMove={(patch) => setSlipPending(patch)} onSave={(patch) => void saveEdit(patch)}/>} {canEditDetails && slipPending && <SlipPicker busy={busy} onPick={(reason) => void confirmMove(reason)} onClose={() => setSlipPending(null)}/>}</article>
 }
 
 function TaskEditor({task, tasks, busy, onClose, onRequestMove, onSave}: {task: Task; tasks: Task[]; busy: boolean; onClose: () => void; onRequestMove: (patch: Partial<Task>) => void; onSave: (patch: Partial<Task>) => void}) {
