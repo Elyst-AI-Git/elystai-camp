@@ -147,7 +147,7 @@
 .lane-top{min-width:0}
 .lane-top>div{min-width:0}
 .lane-top h2{overflow-wrap:anywhere}
-.lane{min-width:0;overflow:hidden}
+.lane{min-width:0;overflow:visible}
 @media(max-width:1200px){.lane-meta{grid-template-columns:1fr}.rest-toggle{width:100%;text-align:center}.hours-form{justify-content:space-between}.hours-form .text-button{margin-left:auto}}
 @media(max-width:680px){.sprint-picker .select-menu{min-width:108px}.sprint-picker .select-trigger{height:40px;min-height:40px;padding:9px 10px;font-size:12px}.sprint-picker .text-button{height:40px;padding:9px 10px;font-size:12px}.select-trigger{min-height:41px}.select-option{padding:10px;font-size:13px}.lane-meta{gap:10px}.hours-form{gap:8px}.hours-form .text-button{margin-left:0}.inline-form .select-menu{min-width:0}}
 
