@@ -8,7 +8,7 @@ export type Category = 'outbound' | 'website' | 'content' | 'training' | 'delive
 export type SlipReason = 'unclear_next_step' | 'waiting_on_someone' | 'underestimated' | 'interrupted' | 'energy' | 'reprioritised' | 'forgot' | 'scope_grew' | 'no_longer_valid'
 export interface User { id: Person; name: string; avatarBase: string }
 export interface Sprint { id:string; name:string; startDate:string; endDate:string; goal:string; targetCalls:number; isActive:boolean; changesNextSprint?:string }
-export interface Task { id:string; sprintId:string; owner:Owner; title:string; notes?:string; day:string; tier:Tier; category:Category; status:TaskStatus; waitingOn?:string; blockedBy?:string; completedAt?:string; completedBy?:Person; slipReason?:SlipReason; carriedCount:number }
+export interface Task { id:string; sprintId:string; owner:Owner; title:string; notes?:string; day:string; tier:Tier; category:Category; status:TaskStatus; waitingOn?:string; blockedBy?:string; completedAt?:string; completedBy?:Person; slipReason?:SlipReason; carriedCount:number; sortOrder?:number }
 export interface Metric { id:string; sprintId:string; date:string; key:'calls_booked'|'connections_sent'|'posts_published'|'reels_published'|'articles_published'|'audits_delivered'|'proposals_sent'; value:number; loggedBy?:Person }
 export interface TaskSlipReason { id:string; taskId:string; reason:SlipReason; movedAt:string; movedFromDay:string; movedToDay:string }
 export interface Transaction { id:string; date:string; direction:'in'|'out'; amount:number; currency:'INR'|'AED'|'USD'; category:string; description:string; party?:string; invoiceId?:string; reimbursementId?:string; createdBy?:Person }

@@ -48,6 +48,7 @@ type CampState = {
   updateTask: (id: string, patch: Partial<Task>) => Promise<{error: string | null}>
   deleteTask: (id: string) => Promise<{error: string | null}>
   moveTask: (id: string, day: string, slip?: Task['slipReason']) => Promise<{error: string | null}>
+  reorderTasks: (updates: Array<{id: string; sortOrder: number}>) => Promise<{error: string | null}>
   addMetric: (metric: Metric) => Promise<{error: string | null}>
   removeMetric: (id: string) => Promise<{error: string | null}>
   saveSprintChanges: (id: string, changesNextSprint: string) => Promise<{error: string | null}>
@@ -366,9 +367,11 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     addTask: async (task) => {
       if (!isTaskTargetAllowed(task.day, currentDate)) return {error: 'Tasks older than yesterday are read-only'}
       if (task.tier === 'must' && (task.owner === 'nihal' || task.owner === 'shirin') && tasks.filter((item) => item.id !== task.id && item.sprintId === task.sprintId && item.owner === task.owner && item.day === task.day && item.tier === 'must').length >= 5) return {error: 'Musts are capped at five for that day'}
-      const result = await saveTask(task)
+      const sameGroup = tasks.filter((item) => item.sprintId === task.sprintId && item.owner === task.owner && item.day === task.day && item.tier === task.tier)
+      const next = {...task, sortOrder: task.sortOrder ?? (sameGroup.length ? Math.max(...sameGroup.map((item) => item.sortOrder ?? 0)) + 1 : 0)}
+      const result = await saveTask(next)
       if (result.error) return {error: 'Could not save task'}
-      setTasks((items) => [task, ...items])
+      setTasks((items) => [next, ...items])
       return {error: null}
     },
     updateTask: async (id, patch) => {
@@ -436,6 +439,24 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       }
       setTasks((items) => items.map((task) => task.id === id ? next : task))
       if (reason) setSlipReasons((items) => [reason as TaskSlipReason, ...items])
+      return {error: null}
+    },
+    reorderTasks: async (updates) => {
+      if (!updates.length) return {error: null}
+      const currentById = new Map(tasks.map((task) => [task.id, task]))
+      const changed = updates.map(({id, sortOrder}) => {
+        const current = currentById.get(id)
+        return current ? {current, next: {...current, sortOrder} as Task} : null
+      })
+      if (changed.some((item) => !item)) return {error: 'Task not found'}
+      const valid = changed.filter((item): item is {current: Task; next: Task} => Boolean(item))
+      if (valid.some(({current}) => !isTaskEditable(current.day, currentDate) || current.day === addDays(currentDate, -1))) return {error: 'Only today’s task order can be changed'}
+      for (const {next} of valid) {
+        const result = await saveTask(next)
+        if (result.error) return {error: 'Could not reorder tasks'}
+      }
+      const byId = new Map(valid.map(({next}) => [next.id, next]))
+      setTasks((items) => items.map((item) => byId.get(item.id) ?? item))
       return {error: null}
     },
     addMetric: async (metric) => {

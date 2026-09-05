@@ -361,3 +361,28 @@
 .task-row.read-only .avatar{filter:saturate(.8)}
 .task-row.status-only .checkbox{box-shadow:0 0 0 2px rgba(163,217,119,.3)}
 @media(max-width:680px){.task-day-nav{margin:12px 0;padding:13px 14px}.task-day-nav strong{font-size:18px}.task-day-nav span{font-size:11px}.task-day-arrow{width:34px;height:34px;font-size:23px}}
+
+/* Tasks keep the semantic status colours first; an open Important task gets a
+   quiet grey surface so the word Important and the priority are unmistakable. */
+.task-row.important:not(.waiting):not(.blocked):not(.done):not(.carried){background:var(--surface-muted)}
+.task-tier-label.important{font-weight:900;color:var(--ink)}
+.task-row[draggable="true"]{cursor:grab}
+.task-row[draggable="true"]:active{cursor:grabbing}
+.task-row.dragging{opacity:.55;outline:2px dashed var(--mint);outline-offset:2px}
+
+/* Use clear, recognisable line icons in the desktop rail. */
+.side nav button .nav-icon{display:inline-grid;place-items:center;width:24px;height:20px;margin-right:2px;vertical-align:-5px}
+.side nav button .nav-icon svg{width:20px;height:20px;display:block;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* Numeric weekly goals can be counted; qualitative goals use an explicit
+   completion control. */
+.goal-card.goal-complete .goal-card-copy b,.goal-title-complete{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:currentColor}
+.goal-complete-button{border:0;border-radius:9px;padding:8px 11px;background:var(--ink);color:#fff;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.goal-complete-button:hover{background:#30302f}
+.goal-complete-button:disabled{opacity:.55;cursor:wait}
+.goal-target-stepper{display:flex;align-items:center;gap:5px}
+.goal-target-stepper button{width:32px;height:42px;border:0;border-radius:10px;background:var(--surface-muted);color:var(--ink);font-size:22px;line-height:1;cursor:pointer}
+.goal-target-stepper button:disabled{opacity:.45;cursor:wait}
+.goal-target-stepper input{flex:1;min-width:0;text-align:center}
+.goal-target-field>.optional{display:block;margin-top:1px}
+.goal-target-stepper input::-webkit-inner-spin-button,.goal-target-stepper input::-webkit-outer-spin-button{appearance:none;margin:0}

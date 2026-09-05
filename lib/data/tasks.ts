@@ -16,12 +16,13 @@ type DbTask = {
   completed_at?: string | null
   completed_by?: Task['completedBy'] | null
   carried_count?: number | null
+  sort_order?: number | null
 }
 
 const genericError = (error: unknown, fallback: string): Error | null => error ? new Error(fallback) : null
 
 function mapTask(row: DbTask): Task {
-  return {id:row.id,sprintId:row.sprint_id ?? '',owner:row.owner,title:row.title,notes:row.notes ?? undefined,day:row.day,tier:row.tier,category:row.category,status:row.status,waitingOn:row.waiting_on ?? undefined,blockedBy:row.blocked_by ?? undefined,completedAt:row.completed_at ?? undefined,completedBy:row.completed_by ?? undefined,carriedCount:Number(row.carried_count ?? 0)}
+  return {id:row.id,sprintId:row.sprint_id ?? '',owner:row.owner,title:row.title,notes:row.notes ?? undefined,day:row.day,tier:row.tier,category:row.category,status:row.status,waitingOn:row.waiting_on ?? undefined,blockedBy:row.blocked_by ?? undefined,completedAt:row.completed_at ?? undefined,completedBy:row.completed_by ?? undefined,carriedCount:Number(row.carried_count ?? 0),sortOrder:row.sort_order == null ? undefined : Number(row.sort_order)}
 }
 
 export async function fetchTasks(): Promise<{data:Task[] | null; error:Error | null}> {
@@ -38,7 +39,16 @@ export async function saveTask(task: Partial<Task> & {id:string}): Promise<{erro
   // Slip reasons have their own task_slip_reasons table; tasks does not have a
   // slip_reason column in the database schema.
   const payload = {id:task.id,sprint_id:task.sprintId,owner:task.owner,title:task.title,notes:task.notes ?? null,day:task.day,tier:task.tier,category:task.category,status:task.status,waiting_on:task.waitingOn ?? null,blocked_by:task.blockedBy ?? null,completed_at:task.completedAt ?? null,completed_by:task.completedBy ?? null,carried_count:task.carriedCount ?? 0}
-  const {error} = await supabase.from('tasks').upsert(payload)
+  const payloadWithOrder = task.sortOrder === undefined ? payload : {...payload, sort_order: task.sortOrder}
+  const {error} = await supabase.from('tasks').upsert(payloadWithOrder)
+  if (!error) return {error:null}
+  // The ordering migration may not have been applied yet. Keep normal task
+  // writes working while the database is upgraded; ordering then becomes
+  // shared as soon as the new column exists.
+  if (task.sortOrder !== undefined) {
+    const fallback = await supabase.from('tasks').upsert(payload)
+    if (!fallback.error) return {error:null}
+  }
   return {error:genericError(error,'Could not save task')}
 }
 
