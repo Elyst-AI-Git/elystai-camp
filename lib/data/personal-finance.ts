@@ -17,11 +17,16 @@ function mapEntry(row: DbPersonalTransaction): PersonalTransaction {
   return {id: row.id, person: row.person, date: row.date, direction: row.direction, amount: Number(row.amount), currency: row.currency, category: row.category as PersonalTransaction['category'], description: row.description, createdBy: row.created_by ?? undefined}
 }
 
+function isMissingTable(error: unknown): boolean {
+  const candidate = error as {code?: string; message?: string}
+  return candidate?.code === 'PGRST205' || candidate?.code === '42P01' || candidate?.message?.toLowerCase().includes('does not exist') === true
+}
+
 export async function fetchPersonalTransactions(): Promise<{data: PersonalTransaction[] | null; error: Error | null}> {
   const supabase = createAnonClient()
   if (!supabase) return {data: null, error: null}
   const {data, error} = await supabase.from('personal_transactions').select('*').order('date', {ascending: false})
-  if (error) return {data: null, error: new Error('Could not load personal money')}
+  if (error) return isMissingTable(error) ? {data: [], error: null} : {data: null, error: new Error('Could not load personal money')}
   return {data: (data as unknown as DbPersonalTransaction[]).map(mapEntry), error: null}
 }
 

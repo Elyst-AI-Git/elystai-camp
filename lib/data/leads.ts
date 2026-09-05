@@ -20,11 +20,16 @@ function mapLead(row: DbLead): Lead {
   return {id: row.id, company: row.company, contactName: row.contact_name ?? undefined, stage: row.stage, owner: row.owner, source: row.source ?? undefined, nextAction: row.next_action, followUpDate: row.follow_up_date ?? undefined, estimatedValue: row.estimated_value === null || row.estimated_value === undefined ? undefined : Number(row.estimated_value), notes: row.notes ?? undefined, createdAt: row.created_at ?? undefined, updatedAt: row.updated_at ?? undefined}
 }
 
+function isMissingTable(error: unknown): boolean {
+  const candidate = error as {code?: string; message?: string}
+  return candidate?.code === 'PGRST205' || candidate?.code === '42P01' || candidate?.message?.toLowerCase().includes('does not exist') === true
+}
+
 export async function fetchLeads(): Promise<{data: Lead[] | null; error: Error | null}> {
   const supabase = createAnonClient()
   if (!supabase) return {data: null, error: null}
   const {data, error} = await supabase.from('leads').select('*').order('updated_at', {ascending: false})
-  if (error) return {data: null, error: new Error('Could not load leads')}
+  if (error) return isMissingTable(error) ? {data: [], error: null} : {data: null, error: new Error('Could not load leads')}
   return {data: (data as unknown as DbLead[]).map(mapLead), error: null}
 }
 
