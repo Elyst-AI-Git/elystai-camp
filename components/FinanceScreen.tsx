@@ -88,6 +88,16 @@ export default function FinanceScreen() {
   const personalMonth = monthKey(today)
   const personalIn = personalRows.filter((entry) => entry.direction === 'in' && monthKey(entry.date) === personalMonth).reduce((sum, entry) => sum + (toINR(entry.amount, entry.currency, settings.fxRates) ?? 0), 0)
   const personalOut = personalRows.filter((entry) => entry.direction === 'out' && monthKey(entry.date) === personalMonth).reduce((sum, entry) => sum + (toINR(entry.amount, entry.currency, settings.fxRates) ?? 0), 0)
+  const personalPendingCash = personalIn - personalOut
+  const personalCategorySpend = useMemo(() => {
+    const totals = new Map<PersonalFinanceCategory, number>()
+    personalRows.forEach((entry) => {
+      if (entry.direction !== 'out' || monthKey(entry.date) !== personalMonth) return
+      totals.set(entry.category, (totals.get(entry.category) ?? 0) + (toINR(entry.amount, entry.currency, settings.fxRates) ?? 0))
+    })
+    return Array.from(totals.entries()).sort((a, b) => b[1] - a[1])
+  }, [personalRows, personalMonth, settings.fxRates])
+  const maxPersonalCategorySpend = Math.max(1, ...personalCategorySpend.map(([, value]) => value))
 
   function shiftCategoryMonth(delta: number) {
     const [year, month] = categoryMonth.split('-').map(Number)
@@ -261,6 +271,10 @@ export default function FinanceScreen() {
         <button type="button" className="button dark" onClick={() => {setEditingPersonal(null);setShowPersonalModal(true)}}>+ Personal entry</button>
       </div>
       <div className="personal-money-toolbar"><div className="personal-person-switch" role="tablist" aria-label="Personal money owner"><button type="button" className={personalPerson === 'nihal' ? 'active' : ''} onClick={() => setPersonalPerson('nihal')}>Nihal</button><button type="button" className={personalPerson === 'shirin' ? 'active' : ''} onClick={() => setPersonalPerson('shirin')}>Shirin</button></div><div className="personal-summary"><span><small>In this month</small><b>{money(personalIn)}</b></span><span><small>Out this month</small><b>{money(personalOut)}</b></span></div></div>
+      <section className="personal-insights" aria-label="Personal cash and spending">
+        <article className={`personal-pending-card ${personalPendingCash < 0 ? 'is-negative' : ''}`}><p className="eyebrow">Pending cash</p><strong>{money(personalPendingCash)}</strong><small>Money in less money out this month</small></article>
+        <article className="personal-spend-card"><div className="personal-spend-head"><div><p className="eyebrow">Spend so far</p><h3>By category</h3></div><span>{new Date(`${personalMonth}-15T12:00:00`).toLocaleDateString('en-IN', {month: 'long'})}</span></div>{personalCategorySpend.length === 0 ? <p className="personal-empty">No personal spending logged this month.</p> : <div className="personal-category-list">{personalCategorySpend.map(([name, value]) => <div className="personal-category-row" key={name}><div><span>{name}</span><b>{money(value)}</b></div><i style={{width: `${Math.max(5, value / maxPersonalCategorySpend * 100)}%`}} /></div>)}</div>}</article>
+      </section>
       {personalRows.length === 0 ? <p className="personal-empty">No personal entries for {personalPerson === 'nihal' ? 'Nihal' : 'Shirin'} yet.</p> : <div className="personal-ledger">{personalRows.map((entry) => <div className="personal-ledger-row" key={entry.id}><span>{entry.date}</span><div><b>{entry.description}</b><small>{entry.category}</small></div><strong className={entry.direction}>{entry.direction === 'in' ? '+' : '−'} {originalWithINR(entry.amount, entry.currency, settings.fxRates)}</strong><button type="button" className="ledger-edit-button" onClick={() => setEditingPersonal(entry)}>Edit</button><button type="button" className="ledger-delete-button" onClick={() => void removePersonal(entry)}>Delete</button></div>)}</div>}
     </section>}
 
