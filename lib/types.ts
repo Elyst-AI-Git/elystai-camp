@@ -17,6 +17,7 @@ export interface Reimbursement { id:string; description:string; amount:number; c
 export interface CalendarBlock { id:string; owner:Owner; title:string; startAt:string; endAt:string; category:Category; notes?:string }
 export interface Settings { openingBalance:number; currentBalance?:number; currentBalanceAsOf?:string; monthlyBurnOverride?:number; fxRates:{AED:number;USD:number}; mustCap:number }
 export interface DailyHours { id:string; person:Person; date:string; hours:number; updatedAt?:string }
+export interface WorkdayLog { id:string; person:Person; date:string; startedAt?:string; endedAt?:string }
 export interface RestDay { id:string; person:Person; date:string }
 export interface WeeklyGoal { id:string; sprintId:string; person:Person; title:string; description?:string; color:string; target?:number; value:number; weekStart?:string }
 export type PersonalFinanceCategory = 'Salary'|'Food (Lunch)'|'Food (Dinner)'|'Food (Breakfast)'|'Food (Tea/Snacks)'|'Travel'|'Rent'|'Mess'|'Groceries'|'Cosmetics'|'Health'|'Savings'|'Mobile data/call payment'

@@ -22,6 +22,12 @@ function formatDate(value: string, options: Intl.DateTimeFormatOptions): string 
   return new Intl.DateTimeFormat('en-IN', options).format(new Date(`${value}T12:00:00`))
 }
 
+function formatTime(value?: string): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('en-IN', {hour: 'numeric', minute: '2-digit'}).format(date)
+}
+
 function mondayISO(value: string): string {
   const date = new Date(`${value.slice(0, 10)}T12:00:00`)
   const day = date.getDay()
@@ -121,6 +127,36 @@ function TaskDayNavigator({date, today, onChange}: {date: string; today: string;
   return <section className="task-day-nav" aria-label="Task day history"><button type="button" className="task-day-arrow" aria-label="Previous task day" disabled={!canPrevious} onClick={() => onChange(addDays(date, -1))}>‹</button><div><p className="eyebrow">Task history · last 7 days</p><strong>{formatDate(date, {weekday: 'long', day: 'numeric', month: 'short'})}</strong><span>{label}{date === today ? ' · updates open' : ' · read-only'}</span></div><button type="button" className="task-day-arrow" aria-label="Next task day" disabled={!canNext} onClick={() => onChange(addDays(date, 1))}>›</button></section>
 }
 
+function WorkdayLogCard() {
+  const {currentPerson, currentDate, workdayLogs, logWorkdayStart, logWorkdayEnd} = useCamp()
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const log = workdayLogs.find((entry) => entry.person === currentPerson && entry.date === currentDate)
+  const started = Boolean(log?.startedAt)
+  const ended = Boolean(log?.endedAt)
+  const personLabel = personName[currentPerson]
+
+  async function run(action: () => Promise<MutationResult>) {
+    if (busy) return
+    setBusy(true); setMessage('')
+    try {
+      const result = await action()
+      setMessage(result.error ?? '')
+    } catch {
+      setMessage('Could not save workday log')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <section className="workday-card" aria-label="Workday log">
+    <div className="workday-heading"><div><p className="eyebrow">Workday log</p><h2>Start and finish your day</h2><p>{personLabel} · {formatDate(currentDate, {weekday: 'long', day: 'numeric', month: 'short'})}</p></div><Avatar owner={currentPerson}/></div>
+    <div className="workday-track"><div className={`workday-point ${started ? 'logged' : ''}`}><span>Started</span><strong>{formatTime(log?.startedAt)}</strong></div><div className={`workday-line ${started ? 'logged' : ''}`} aria-hidden="true"/><div className={`workday-point ${ended ? 'logged' : ''}`}><span>Finished</span><strong>{formatTime(log?.endedAt)}</strong></div></div>
+    <div className="workday-actions"><button type="button" className="button quiet" disabled={busy || started} onClick={() => void run(() => logWorkdayStart(currentPerson, currentDate))}>{busy && !started ? 'Saving…' : started ? 'Day started' : 'Start day'}</button><button type="button" className="button dark" disabled={busy || !started || ended} onClick={() => void run(() => logWorkdayEnd(currentPerson, currentDate))}>{busy && started && !ended ? 'Saving…' : ended ? 'Day finished' : 'Finish day'}</button></div>
+    {message && <small className="workday-message" role="status">{message}</small>}
+  </section>
+}
+
 function Today() {
   const {tasks, metrics, transactions, invoices, settings, sprints, activeSprintId, currentDate, previewPerson, setView} = useCamp()
   const [taskDate, setTaskDate] = useState(currentDate)
@@ -147,7 +183,7 @@ function Today() {
       ? 'Calendar'
       : 'Today'
   const laneOrder: Person[] = previewPerson === 'shirin' ? ['shirin', 'nihal'] : ['nihal', 'shirin']
-  return <><section className="number-hero"><div className="hero-copy"><div className="number"><strong>{calls}</strong><span>/ {sprint.targetCalls}</span></div><h2>Audit calls booked</h2><p className="hero-sprint">{sprint.name}</p><p className="hero-week">Week ends Sunday · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</p></div><div className="hero-right"><div className="hero-progress"><div className="arc" style={{'--progress': `${sprint.targetCalls ? Math.min(100, calls / sprint.targetCalls * 100) : 0}%`} as React.CSSProperties}><span>{calls}/{sprint.targetCalls}</span></div><p className="hero-goal">Goal: {sprint.goal}</p></div><CallLogger sprintId={sprint.id} calls={calls}/></div></section><section className={`insight ${insight[0]}`}><span className="insight-star">✦</span><div><p className="eyebrow">A useful nudge</p><h3>{insight[1]}</h3></div><button type="button" className="button dark" onClick={() => setView(insightTarget)}>{insight[2]} ›</button></section><TaskDayNavigator date={taskDate} today={currentDate} onChange={setTaskDate}/><section className="lane-wrap">{laneOrder.map((person) => <Lane person={person} sprint={sprint} date={taskDate} key={person}/>)}</section><TodayCalendarStrip/><WeeklyKpiPanel/></>
+  return <><section className="number-hero"><div className="hero-copy"><div className="number"><strong>{calls}</strong><span>/ {sprint.targetCalls}</span></div><h2>Audit calls booked</h2><p className="hero-sprint">{sprint.name}</p><p className="hero-week">Week ends Sunday · {daysLeft} day{daysLeft === 1 ? '' : 's'} left</p></div><div className="hero-right"><div className="hero-progress"><div className="arc" style={{'--progress': `${sprint.targetCalls ? Math.min(100, calls / sprint.targetCalls * 100) : 0}%`} as React.CSSProperties}><span>{calls}/{sprint.targetCalls}</span></div><p className="hero-goal">Goal: {sprint.goal}</p></div><CallLogger sprintId={sprint.id} calls={calls}/></div></section><section className={`insight ${insight[0]}`}><span className="insight-star">✦</span><div><p className="eyebrow">A useful nudge</p><h3>{insight[1]}</h3></div><button type="button" className="button dark" onClick={() => setView(insightTarget)}>{insight[2]} ›</button></section><WorkdayLogCard/><TaskDayNavigator date={taskDate} today={currentDate} onChange={setTaskDate}/><section className="lane-wrap">{laneOrder.map((person) => <Lane person={person} sprint={sprint} date={taskDate} key={person}/>)}</section><TodayCalendarStrip/><WeeklyKpiPanel/></>
 }
 
 function CallLogger({sprintId, calls}: {sprintId: string; calls: number}) {
@@ -173,7 +209,7 @@ function CallLogger({sprintId, calls}: {sprintId: string; calls: number}) {
 }
 
 function Lane({person, sprint, date}: {person: Person; sprint: Sprint; date: string}) {
-  const {tasks, metrics, invoices, restDays, dailyHours, currentDate, previewPerson, setPreviewPerson, toggleTask, addTask, updateTask, deleteTask, reorderTasks, saveDailyHours, toggleRestDay} = useCamp()
+  const {tasks, metrics, invoices, restDays, dailyHours, currentDate, previewPerson, setPreviewPerson, toggleTask, addTask, updateTask, deleteTask, rolloverTask, reorderTasks, saveDailyHours, toggleRestDay} = useCamp()
   const editableDay = date === currentDate || date === addDays(currentDate, -1)
   const detailsEditable = date === currentDate
   const [adding, setAdding] = useState(false)
@@ -285,21 +321,47 @@ function Lane({person, sprint, date}: {person: Person; sprint: Sprint; date: str
       </form>
       <button type="button" className="rest-toggle" disabled={!editableDay || restBusy} onClick={() => void toggleRest()}>{restBusy ? 'Saving…' : isRestDay ? 'Remove rest day' : 'Mark rest day'}</button>
     </div>
-    <div className="lane-tasks" onDragOver={(event) => { if (detailsEditable) event.preventDefault() }}>{priorityTasks.map((task) => <TaskRow key={task.id} task={task} tasks={tasks} editable={editableDay} detailsEditable={detailsEditable} isDraggable={detailsEditable && !ordering} dragging={draggingId === task.id} onDragStart={setDraggingId} onDragEnd={() => setDraggingId(null)} onDrop={(targetId) => void reorder(draggingId, targetId)} toggle={() => toggleTask(task.id)} update={(patch) => updateTask(task.id, patch)} remove={() => deleteTask(task.id)}/>)}</div>
+    <div className="lane-tasks" onDragOver={(event) => { if (detailsEditable) event.preventDefault() }}>{priorityTasks.map((task) => <TaskRow key={task.id} task={task} tasks={tasks} editable={editableDay} detailsEditable={detailsEditable} canRollover={date === addDays(currentDate, -1) && task.status !== 'done'} rollover={(slip) => rolloverTask(task.id, slip)} isDraggable={detailsEditable && !ordering} dragging={draggingId === task.id} onDragStart={setDraggingId} onDragEnd={() => setDraggingId(null)} onDrop={(targetId) => void reorder(draggingId, targetId)} toggle={() => toggleTask(task.id)} update={(patch) => updateTask(task.id, patch)} remove={() => deleteTask(task.id)}/>)}</div>
     {detailsEditable ? adding ? <form className="inline-form" noValidate onSubmit={(event) => void add(event)}><input name="title" autoFocus placeholder="What needs doing?"/><SelectMenu value={addDay} options={availableTaskDays} ariaLabel={`${personName[person]} task day`} name="day" onChange={setAddDay}/><SelectMenu value={addTier} options={[{value:'must',label:'Important'},{value:'stretch',label:'Stretch'}]} ariaLabel={`${personName[person]} task type`} name="tier" onChange={(value) => setAddTier(value)}/><SelectMenu value={addCategory} options={categories.map((category) => ({value:category,label:categoryLabel(category)}))} ariaLabel={`${personName[person]} task category`} name="category" onChange={(value) => setAddCategory(value)}/><button type="submit" className="button dark" disabled={busy}>{busy ? 'Adding…' : 'Add'}</button></form> : <button type="button" className="add-line" onClick={() => { setMessage(''); setAdding(true) }}>+ Add task</button> : <small className="history-lock">{editableDay ? 'Yesterday is status-only. You can update completion, but not task details.' : 'History is read-only. Only today and yesterday can be updated.'}</small>}
     {message && <small className="task-error" role="status">{message}</small>}
     <details className="lane-details"><summary>Work hours</summary><ConsistencyHeatmap person={person} tasks={tasks} restDays={restDays} currentDate={currentDate}/><PrivateHours person={person} dailyHours={dailyHours} currentDate={currentDate}/></details>
   </section>
 }
 
-function TaskRow({task, tasks, editable = true, detailsEditable, isDraggable = false, dragging = false, onDragStart, onDragEnd, onDrop, toggle, update, remove}: {task: Task; tasks: Task[]; editable?: boolean; detailsEditable?: boolean; isDraggable?: boolean; dragging?: boolean; onDragStart?: (id: string) => void; onDragEnd?: () => void; onDrop?: (id: string) => void; toggle: () => Promise<MutationResult>; update: (patch: Partial<Task>) => Promise<MutationResult>; remove: () => Promise<MutationResult>}) {
-  const [menu, setMenu] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [editing, setEditing] = useState(false); const [slipPending, setSlipPending] = useState<Partial<Task> | null>(null)
-  async function run(action: () => Promise<MutationResult>): Promise<boolean> { setBusy(true); setMessage(''); try { const result = await action(); if (result.error) { setMessage(result.error); return false }; setMenu(false); return true } catch { setMessage('Could not save task'); return false } finally { setBusy(false) } }
+function TaskRow({task, tasks, editable = true, detailsEditable, canRollover = false, rollover, isDraggable = false, dragging = false, onDragStart, onDragEnd, onDrop, toggle, update, remove}: {task: Task; tasks: Task[]; editable?: boolean; detailsEditable?: boolean; canRollover?: boolean; rollover?: (slip?: SlipReason) => Promise<MutationResult>; isDraggable?: boolean; dragging?: boolean; onDragStart?: (id: string) => void; onDragEnd?: () => void; onDrop?: (id: string) => void; toggle: () => Promise<MutationResult>; update: (patch: Partial<Task>) => Promise<MutationResult>; remove: () => Promise<MutationResult>}) {
+  const [menu, setMenu] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [slipPending, setSlipPending] = useState<Partial<Task> | null>(null)
+  const [rolloverPending, setRolloverPending] = useState(false)
+
+  async function run(action: () => Promise<MutationResult>): Promise<boolean> {
+    setBusy(true); setMessage('')
+    try {
+      const result = await action()
+      if (result.error) { setMessage(result.error); return false }
+      setMenu(false)
+      return true
+    } catch {
+      setMessage('Could not save task')
+      return false
+    } finally { setBusy(false) }
+  }
+
   async function saveEdit(patch: Partial<Task>) { if (await run(() => update(patch))) setEditing(false) }
   async function confirmMove(reason: SlipReason) { if (!slipPending) return; const patch = {...slipPending, slipReason: reason}; setSlipPending(null); if (await run(() => update(patch))) setEditing(false) }
+  async function confirmRollover(reason?: SlipReason) { setRolloverPending(false); if (rollover) await run(() => rollover(reason)) }
   const blockedTitle = task.blockedBy ? tasks.find((item) => item.id === task.blockedBy)?.title : undefined
   const canEditDetails = detailsEditable ?? editable
-  return <article draggable={isDraggable} className={`task-row ${task.status} ${task.tier === 'must' ? 'important' : 'stretch'} ${task.carriedCount >= 2 ? 'carried' : ''} ${editable ? '' : 'read-only'} ${editable && !canEditDetails ? 'status-only' : ''} ${dragging ? 'dragging' : ''}`} title={!editable ? 'History is read-only' : !canEditDetails ? 'Yesterday: completion only' : undefined} onDragStart={() => onDragStart?.(task.id)} onDragEnd={() => onDragEnd?.()} onDragOver={(event) => { if (isDraggable) event.preventDefault() }} onDrop={(event) => { if (isDraggable) { event.preventDefault(); onDrop?.(task.id) } }}><button type="button" className="checkbox" disabled={busy || !editable} aria-label={editable ? `Mark ${task.title} ${task.status === 'done' ? 'open' : 'done'}` : `${task.title} is read-only`} onClick={() => void run(toggle)}>{task.status === 'done' ? '✓' : ''}</button><div className="task-copy"><b>{task.title}</b><small><span className={`task-tier-label ${task.tier === 'must' ? 'important' : ''}`}>{task.tier === 'must' ? 'Important' : 'Stretch'}</span> · {categoryLabel(task.category)} {task.waitingOn && `· waiting on ${task.waitingOn}`}</small>{task.status === 'blocked' && <em>Blocked · {blockedTitle ?? task.waitingOn ?? 'needs a handoff'}</em>}{task.carriedCount >= 2 && <em>moved {task.carriedCount}×</em>}{message && <small className="task-error" role="status">{message}</small>}</div><Avatar owner={task.owner}/>{canEditDetails && <button type="button" className="more" disabled={busy} aria-label={`Actions for ${task.title}`} onClick={() => setMenu((open) => !open)}>•••</button>}{canEditDetails && menu && <div className="task-menu"><button type="button" disabled={busy} onClick={() => {setMenu(false);setEditing(true)}}>Edit task</button><button type="button" disabled={busy} onClick={() => void run(remove)}>Delete</button></div>}{canEditDetails && editing && <TaskEditor task={task} tasks={tasks} busy={busy} onClose={() => setEditing(false)} onRequestMove={(patch) => setSlipPending(patch)} onSave={(patch) => void saveEdit(patch)}/>} {canEditDetails && slipPending && <SlipPicker busy={busy} onPick={(reason) => void confirmMove(reason)} onClose={() => setSlipPending(null)}/>}</article>
+  return <article draggable={isDraggable} className={`task-row ${task.status} ${task.tier === 'must' ? 'important' : 'stretch'} ${task.carriedCount >= 2 ? 'carried' : ''} ${editable ? '' : 'read-only'} ${editable && !canEditDetails ? 'status-only' : ''} ${dragging ? 'dragging' : ''}`} title={!editable ? 'History is read-only' : !canEditDetails ? 'Yesterday: completion only' : undefined} onDragStart={() => onDragStart?.(task.id)} onDragEnd={() => onDragEnd?.()} onDragOver={(event) => { if (isDraggable) event.preventDefault() }} onDrop={(event) => { if (isDraggable) { event.preventDefault(); onDrop?.(task.id) } }}>
+    <button type="button" className="checkbox" disabled={busy || !editable} aria-label={editable ? `Mark ${task.title} ${task.status === 'done' ? 'open' : 'done'}` : `${task.title} is read-only`} onClick={() => void run(toggle)}>{task.status === 'done' ? '✓' : ''}</button>
+    <div className="task-copy"><b>{task.title}</b><small><span className={`task-tier-label ${task.tier === 'must' ? 'important' : ''}`}>{task.tier === 'must' ? 'Important' : 'Stretch'}</span> · {categoryLabel(task.category)} {task.waitingOn && `· waiting on ${task.waitingOn}`}</small>{task.status === 'blocked' && <em>Blocked · {blockedTitle ?? task.waitingOn ?? 'needs a handoff'}</em>}{task.carriedCount >= 2 && <em>moved {task.carriedCount}×</em>}{message && <small className="task-error" role="status">{message}</small>}</div>
+    {canRollover && rollover && <button type="button" className="rollover-button" disabled={busy} onClick={() => task.tier === 'must' ? setRolloverPending(true) : void confirmRollover()}>{busy ? 'Moving…' : 'Roll over'}</button>}
+    <Avatar owner={task.owner}/>
+    {canEditDetails && <button type="button" className="more" disabled={busy} aria-label={`Actions for ${task.title}`} onClick={() => setMenu((open) => !open)}>•••</button>}
+    {canEditDetails && menu && <div className="task-menu"><button type="button" disabled={busy} onClick={() => {setMenu(false);setEditing(true)}}>Edit task</button><button type="button" disabled={busy} onClick={() => void run(remove)}>Delete</button></div>}
+    {canEditDetails && editing && <TaskEditor task={task} tasks={tasks} busy={busy} onClose={() => setEditing(false)} onRequestMove={(patch) => setSlipPending(patch)} onSave={(patch) => void saveEdit(patch)}/>} {canEditDetails && slipPending && <SlipPicker busy={busy} onPick={(reason) => void confirmMove(reason)} onClose={() => setSlipPending(null)}/>} {rolloverPending && <SlipPicker busy={busy} onPick={(reason) => void confirmRollover(reason)} onClose={() => setRolloverPending(false)}/>}</article>
 }
 
 function TaskEditor({task, tasks, busy, onClose, onRequestMove, onSave}: {task: Task; tasks: Task[]; busy: boolean; onClose: () => void; onRequestMove: (patch: Partial<Task>) => void; onSave: (patch: Partial<Task>) => void}) {

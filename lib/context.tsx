@@ -1,7 +1,7 @@
 'use client'
 
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
-import {blocks as seedBlocks, dailyHours as seedDailyHours, invoices as seedInvoices, leads as seedLeads, metrics as seedMetrics, personalTransactions as seedPersonalTransactions, reimbursements as seedReimbursements, restDays as seedRestDays, settings as seedSettings, slipReasons as seedSlipReasons, sprints as seedSprints, tasks as seedTasks, transactions as seedTransactions, users, weeklyGoals as seedWeeklyGoals} from './mock/data'
+import {blocks as seedBlocks, dailyHours as seedDailyHours, invoices as seedInvoices, leads as seedLeads, metrics as seedMetrics, personalTransactions as seedPersonalTransactions, reimbursements as seedReimbursements, restDays as seedRestDays, settings as seedSettings, slipReasons as seedSlipReasons, sprints as seedSprints, tasks as seedTasks, transactions as seedTransactions, users, weeklyGoals as seedWeeklyGoals, workdayLogs as seedWorkdayLogs} from './mock/data'
 import {createAnonClient} from './supabase/browser'
 import {fetchTasks, removeTask, saveTask} from './data/tasks'
 import {fetchInvoices, fetchReimbursements, fetchSettings, fetchTransactions, removeLinkedTransaction, saveInvoice, saveReimbursement, saveSettings, saveTransaction} from './data/finance'
@@ -10,13 +10,14 @@ import {fetchMetrics, removeMetric as removeMetricEntry, saveMetric} from './dat
 import {activateSprint, fetchSprints, saveSprint, saveSprintChanges} from './data/sprints'
 import {fetchSlipReasons, removeSlipReason, saveSlipReason} from './data/slip-reasons'
 import {fetchDailyHours, fetchRestDays, removeRestDay as removeRestDayEntry, saveDailyHours as saveDailyHoursEntry, saveRestDay as saveRestDayEntry} from './data/daily-hours'
+import {fetchWorkdayLogs, saveWorkdayLog as saveWorkdayLogEntry} from './data/workday'
 import {fetchWeeklyGoals, removeWeeklyGoal, saveWeeklyGoal} from './data/weekly-goals'
 import {fetchPersonalTransactions, removePersonalTransaction, savePersonalTransaction} from './data/personal-finance'
 import {fetchLeads, removeLead, saveLead} from './data/leads'
 import {personForEmail} from './auth/person'
 import {addDays} from './activity'
 import {todayISO} from './finance'
-import type {CalendarBlock, Category, DailyHours, Invoice, Lead, Metric, Owner, Person, PersonalTransaction, Reimbursement, RestDay, Settings, Sprint, Task, TaskSlipReason, TaskStatus, Tier, Transaction, WeeklyGoal} from './types'
+import type {CalendarBlock, Category, DailyHours, Invoice, Lead, Metric, Owner, Person, PersonalTransaction, Reimbursement, RestDay, Settings, Sprint, Task, TaskSlipReason, TaskStatus, Tier, Transaction, WeeklyGoal, WorkdayLog} from './types'
 
 type CampState = {
   tasks: Task[]
@@ -27,6 +28,7 @@ type CampState = {
   reimbursements: Reimbursement[]
   blocks: CalendarBlock[]
   dailyHours: DailyHours[]
+  workdayLogs: WorkdayLog[]
   restDays: RestDay[]
   weeklyGoals: WeeklyGoal[]
   personalTransactions: PersonalTransaction[]
@@ -52,6 +54,7 @@ type CampState = {
   updateTask: (id: string, patch: Partial<Task>) => Promise<{error: string | null}>
   deleteTask: (id: string) => Promise<{error: string | null}>
   moveTask: (id: string, day: string, slip?: Task['slipReason']) => Promise<{error: string | null}>
+  rolloverTask: (id: string, slip?: Task['slipReason']) => Promise<{error: string | null}>
   reorderTasks: (updates: Array<{id: string; sortOrder: number}>) => Promise<{error: string | null}>
   addMetric: (metric: Metric) => Promise<{error: string | null}>
   removeMetric: (id: string) => Promise<{error: string | null}>
@@ -65,6 +68,8 @@ type CampState = {
   settleReimbursement: (id: string, settled: boolean) => Promise<{error: string | null}>
   updateSettings: (settings: Settings) => Promise<{error: string | null}>
   saveDailyHours: (person: Person, date: string, hours: number) => Promise<{error: string | null}>
+  logWorkdayStart: (person: Person, date: string) => Promise<{error: string | null}>
+  logWorkdayEnd: (person: Person, date: string) => Promise<{error: string | null}>
   toggleRestDay: (person: Person, date: string) => Promise<{error: string | null}>
   addWeeklyGoal: (goal: WeeklyGoal) => Promise<{error: string | null}>
   updateWeeklyGoal: (id: string, patch: Partial<WeeklyGoal>) => Promise<{error: string | null}>
@@ -124,6 +129,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
   const [reimbursements, setReimbursements] = useState<Reimbursement[]>(seedReimbursements)
   const [blocks, setBlocks] = useState<CalendarBlock[]>(seedBlocks)
   const [dailyHours, setDailyHours] = useState<DailyHours[]>(seedDailyHours)
+  const [workdayLogs, setWorkdayLogs] = useState<WorkdayLog[]>(seedWorkdayLogs)
   const [restDays, setRestDays] = useState<RestDay[]>(seedRestDays)
   const [weeklyGoals, setWeeklyGoals] = useState<WeeklyGoal[]>(seedWeeklyGoals)
   const [personalTransactions, setPersonalTransactions] = useState<PersonalTransaction[]>(seedPersonalTransactions)
@@ -153,6 +159,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         setReimbursements(readStored('reimbursements', seedReimbursements))
         setBlocks(readStored('blocks', seedBlocks))
         setDailyHours(readStored('daily-hours', seedDailyHours))
+        setWorkdayLogs(readStored('workday-logs', seedWorkdayLogs))
         setRestDays(readStored('rest-days', seedRestDays))
         setWeeklyGoals(readStored('weekly-goals', seedWeeklyGoals))
         setPersonalTransactions(readStored('personal-transactions', seedPersonalTransactions))
@@ -171,8 +178,8 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         setIsLoading(false)
         return
       }
-      const results = await Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchSettings(), fetchCalendarBlocks(), fetchSprints(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals(), fetchPersonalTransactions(), fetchLeads()])
-      const [remoteTasks, remoteMetrics, remoteSlipReasons, remoteTransactions, remoteInvoices, remoteReimbursements, remoteSettings, remoteBlocks, remoteSprints, remoteDailyHours, remoteRestDays, remoteWeeklyGoals, remotePersonalTransactions, remoteLeads] = results
+      const results = await Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchSettings(), fetchCalendarBlocks(), fetchSprints(), fetchDailyHours(), fetchWorkdayLogs(), fetchRestDays(), fetchWeeklyGoals(), fetchPersonalTransactions(), fetchLeads()])
+      const [remoteTasks, remoteMetrics, remoteSlipReasons, remoteTransactions, remoteInvoices, remoteReimbursements, remoteSettings, remoteBlocks, remoteSprints, remoteDailyHours, remoteWorkdayLogs, remoteRestDays, remoteWeeklyGoals, remotePersonalTransactions, remoteLeads] = results
       if (!alive) return
       if (results.some((result) => result.error)) setLoadError('Some shared data could not load. Check the Supabase setup and try again.')
       if (remoteTasks.data) setTasks(remoteTasks.data)
@@ -184,6 +191,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       if (remoteSettings.data) setSettings(remoteSettings.data)
       if (remoteBlocks.data) setBlocks(remoteBlocks.data)
       if (remoteDailyHours.data) setDailyHours(remoteDailyHours.data)
+      if (remoteWorkdayLogs.data) setWorkdayLogs(remoteWorkdayLogs.data)
       if (remoteRestDays.data) setRestDays(remoteRestDays.data)
       if (remoteWeeklyGoals.data) setWeeklyGoals(remoteWeeklyGoals.data)
       if (remotePersonalTransactions.data) setPersonalTransactions(remotePersonalTransactions.data)
@@ -274,6 +282,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     save('reimbursements', reimbursements)
     save('blocks', blocks)
     save('daily-hours', dailyHours)
+    save('workday-logs', workdayLogs)
     save('rest-days', restDays)
     save('weekly-goals', weeklyGoals)
     save('personal-transactions', personalTransactions)
@@ -283,14 +292,14 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     save('preview-person', previewPerson)
     save('settings', settings)
     save('review', review)
-  }, [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, personalTransactions, leads, sprints, settings, activeSprintId, currentPerson, previewPerson, review, hydrated])
+  }, [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, workdayLogs, restDays, weeklyGoals, personalTransactions, leads, sprints, settings, activeSprintId, currentPerson, previewPerson, review, hydrated])
 
   useEffect(() => {
     const supabase = createAnonClient()
     if (!supabase) return
     let alive = true
     const reload = () => {
-      void Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchCalendarBlocks(), fetchDailyHours(), fetchRestDays(), fetchWeeklyGoals(), fetchPersonalTransactions(), fetchLeads()]).then(([taskResult, metricResult, slipReasonResult, transactionResult, invoiceResult, reimbursementResult, blockResult, dailyHoursResult, restDaysResult, weeklyGoalsResult, personalTransactionsResult, leadsResult]) => {
+      void Promise.all([fetchTasks(), fetchMetrics(), fetchSlipReasons(), fetchTransactions(), fetchInvoices(), fetchReimbursements(), fetchCalendarBlocks(), fetchDailyHours(), fetchWorkdayLogs(), fetchRestDays(), fetchWeeklyGoals(), fetchPersonalTransactions(), fetchLeads()]).then(([taskResult, metricResult, slipReasonResult, transactionResult, invoiceResult, reimbursementResult, blockResult, dailyHoursResult, workdayResult, restDaysResult, weeklyGoalsResult, personalTransactionsResult, leadsResult]) => {
         if (!alive) return
         if (taskResult.data) setTasks(taskResult.data)
         if (metricResult.data) setMetrics(metricResult.data)
@@ -300,6 +309,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
         if (reimbursementResult.data) setReimbursements(reimbursementResult.data)
         if (blockResult.data) setBlocks(blockResult.data)
         if (dailyHoursResult.data) setDailyHours(dailyHoursResult.data)
+        if (workdayResult.data) setWorkdayLogs(workdayResult.data)
         if (restDaysResult.data) setRestDays(restDaysResult.data)
         if (weeklyGoalsResult.data) setWeeklyGoals(weeklyGoalsResult.data)
         if (personalTransactionsResult.data) setPersonalTransactions(personalTransactionsResult.data)
@@ -316,6 +326,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       .on('postgres_changes', {event: '*', schema: 'public', table: 'reimbursements'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'calendar_blocks'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'daily_hours'}, reload)
+      .on('postgres_changes', {event: '*', schema: 'public', table: 'workday_logs'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'rest_days'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'weekly_goals'}, reload)
       .on('postgres_changes', {event: '*', schema: 'public', table: 'personal_transactions'}, reload)
@@ -333,6 +344,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
     reimbursements,
     blocks,
     dailyHours,
+    workdayLogs,
     restDays,
     weeklyGoals,
     personalTransactions,
@@ -456,6 +468,30 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       let reason: TaskSlipReason | undefined
       if (current.tier === 'must' && slip) {
         reason = {id: crypto.randomUUID(), taskId: id, reason: slip, movedAt: new Date().toISOString(), movedFromDay: current.day, movedToDay: day}
+        const reasonResult = await saveSlipReason(reason)
+        if (reasonResult.error) {
+          await saveTask(current)
+          return {error: 'Could not save slip reason'}
+        }
+      }
+      setTasks((items) => items.map((task) => task.id === id ? next : task))
+      if (reason) setSlipReasons((items) => [reason as TaskSlipReason, ...items])
+      return {error: null}
+    },
+    rolloverTask: async (id, slip) => {
+      const current = tasks.find((task) => task.id === id)
+      if (!current) return {error: 'Task not found'}
+      const yesterday = addDays(currentDate, -1)
+      if (current.day !== yesterday) return {error: 'Only yesterday’s unfinished tasks can be rolled over'}
+      if (current.status === 'done') return {error: 'Completed tasks do not need rolling over'}
+      if (current.tier === 'must' && !slip) return {error: 'Choose a slip reason before rolling over an Important task'}
+      if (current.tier === 'must' && (current.owner === 'nihal' || current.owner === 'shirin') && tasks.filter((task) => task.id !== id && task.sprintId === current.sprintId && task.owner === current.owner && task.day === currentDate && task.tier === 'must').length >= 5) return {error: 'Musts are capped at five for today'}
+      const next = {...current, day: currentDate, carriedCount: current.tier === 'must' ? current.carriedCount + 1 : current.carriedCount, slipReason: current.tier === 'must' ? slip : undefined}
+      const result = await saveTask(next)
+      if (result.error) return {error: 'Could not roll over task'}
+      let reason: TaskSlipReason | undefined
+      if (current.tier === 'must' && slip) {
+        reason = {id: crypto.randomUUID(), taskId: id, reason: slip, movedAt: new Date().toISOString(), movedFromDay: current.day, movedToDay: currentDate}
         const reasonResult = await saveSlipReason(reason)
         if (reasonResult.error) {
           await saveTask(current)
@@ -614,6 +650,25 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       setDailyHours((items) => existing ? items.map((item) => item.id === existing.id ? entry : item) : [entry, ...items])
       return {error: null}
     },
+    logWorkdayStart: async (person, date) => {
+      const existing = workdayLogs.find((entry) => entry.person === person && entry.date === date)
+      if (existing?.startedAt) return {error: 'Your workday is already started'}
+      const entry: WorkdayLog = {id: existing?.id ?? crypto.randomUUID(), person, date, startedAt: new Date().toISOString(), endedAt: existing?.endedAt}
+      const result = await saveWorkdayLogEntry(entry)
+      if (result.error) return {error: 'Could not log workday start'}
+      setWorkdayLogs((items) => existing ? items.map((item) => item.id === existing.id ? entry : item) : [entry, ...items])
+      return {error: null}
+    },
+    logWorkdayEnd: async (person, date) => {
+      const existing = workdayLogs.find((entry) => entry.person === person && entry.date === date)
+      if (!existing?.startedAt) return {error: 'Start your workday before ending it'}
+      if (existing.endedAt) return {error: 'Your workday is already ended'}
+      const entry: WorkdayLog = {...existing, endedAt: new Date().toISOString()}
+      const result = await saveWorkdayLogEntry(entry)
+      if (result.error) return {error: 'Could not log workday end'}
+      setWorkdayLogs((items) => items.map((item) => item.id === existing.id ? entry : item))
+      return {error: null}
+    },
     toggleRestDay: async (person, date) => {
       const existing = restDays.find((entry) => entry.person === person && entry.date === date)
       if (existing) {
@@ -723,7 +778,7 @@ export function CampProvider({children}: {children: React.ReactNode}) {
       return {error: null}
     },
     setReview: (valueToSave) => setReviewText(valueToSave),
-  }), [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, restDays, weeklyGoals, personalTransactions, leads, sprints, settings, activeSprintId, currentPerson, previewPerson, currentDate, view, authStatus, isLoading, loadError])
+  }), [tasks, metrics, slipReasons, transactions, invoices, reimbursements, blocks, dailyHours, workdayLogs, restDays, weeklyGoals, personalTransactions, leads, sprints, settings, activeSprintId, currentPerson, previewPerson, currentDate, view, authStatus, isLoading, loadError])
 
   return <CampContext.Provider value={value}>{children}</CampContext.Provider>
 }

@@ -18,6 +18,19 @@ function displayDate(value: string, options: Intl.DateTimeFormatOptions): string
   return new Intl.DateTimeFormat('en-IN', options).format(new Date(`${value}T12:00:00`))
 }
 
+function displayTime(value?: string): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('en-IN', {hour: 'numeric', minute: '2-digit'}).format(date)
+}
+
+function mondayISO(value: string): string {
+  const date = new Date(`${value.slice(0, 10)}T12:00:00`)
+  const day = date.getDay()
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1))
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 function metricTotal(metrics: Metric[], sprintId: string, key: Metric['key'], start: string, end: string, person?: Person): number {
   return metrics.filter((metric) => metric.sprintId === sprintId && metric.key === key && metric.date >= start && metric.date <= end && (!person || metric.loggedBy === person)).reduce((sum, metric) => sum + metric.value, 0)
 }
@@ -26,8 +39,12 @@ function HoursValue({hours, rest}: {hours: number; rest: boolean}) {
   return <div className="hours-review-value"><strong>{hours}h</strong>{rest && <small>Rest day</small>}</div>
 }
 
+function AttendanceValue({startedAt, endedAt}: {startedAt?: string; endedAt?: string}) {
+  return <div className="attendance-review-value"><strong>{startedAt ? displayTime(startedAt) : 'Not logged'}</strong><small>{endedAt ? `to ${displayTime(endedAt)}` : startedAt ? 'Still open' : '—'}</small></div>
+}
+
 export default function ReviewScreen() {
-  const {tasks, metrics, dailyHours, restDays, weeklyGoals, sprints, activeSprintId, currentDate} = useCamp()
+  const {tasks, metrics, dailyHours, workdayLogs, restDays, weeklyGoals, sprints, activeSprintId, currentDate} = useCamp()
   const sprint = useMemo(() => sprints.find((item) => item.id === activeSprintId) ?? sprints.find((item) => item.isActive) ?? [...sprints].sort((a, b) => b.endDate.localeCompare(a.endDate))[0], [activeSprintId, sprints])
   const days = useMemo(() => {
     if (!sprint) return []
@@ -40,6 +57,10 @@ export default function ReviewScreen() {
       : Math.max(1, Math.min(31, Math.floor((endAt.getTime() - startAt.getTime()) / 86400000) + 1))
     return Array.from({length: duration}, (_, index) => addDays(start.slice(0, 10), index))
   }, [currentDate, sprint])
+  const lastWeekDays = useMemo(() => {
+    const start = addDays(mondayISO(currentDate), -7)
+    return Array.from({length: 7}, (_, index) => addDays(start, index))
+  }, [currentDate])
   if (!sprint) return <section className="review-screen"><section className="review-empty"><p className="eyebrow">Review</p><h2>No sprint to review yet.</h2><p>Start a sprint from the selector above, then this page will track what moved.</p></section></section>
 
   const sprintTasks = tasks.filter((task) => task.sprintId === sprint.id)
@@ -62,6 +83,8 @@ export default function ReviewScreen() {
 
 
     <section className="review-panel review-hours"><div className="review-panel-head"><div><p className="eyebrow">Work hours</p><h2>Hours by day</h2></div><span className="count-pill">Selected sprint week</span></div><div className="hours-review-table"><div className="hours-review-head"><span>Day</span><span>Nihal</span><span>Shirin</span></div>{days.map((day) => <div className="hours-review-row" key={day}><span>{displayDate(day, {weekday: 'short', day: 'numeric', month: 'short'})}</span><HoursValue hours={dailyHours.find((entry) => entry.person === 'nihal' && entry.date === day)?.hours ?? 0} rest={restDays.some((entry) => entry.person === 'nihal' && entry.date === day)}/><HoursValue hours={dailyHours.find((entry) => entry.person === 'shirin' && entry.date === day)?.hours ?? 0} rest={restDays.some((entry) => entry.person === 'shirin' && entry.date === day)}/></div>)}</div></section>
+
+    <section className="review-panel review-attendance"><div className="review-panel-head"><div><p className="eyebrow">Workday attendance</p><h2>Last week’s start and finish</h2><p className="review-panel-subcopy">The times each person opened and closed Camp last week.</p></div><span className="count-pill">Monday – Sunday</span></div><div className="attendance-review-table"><div className="attendance-review-head"><span>Day</span><span>Nihal</span><span>Shirin</span></div>{lastWeekDays.map((day) => <div className="attendance-review-row" key={day}><span>{displayDate(day, {weekday: 'short', day: 'numeric', month: 'short'})}</span><AttendanceValue {...(workdayLogs.find((entry) => entry.person === 'nihal' && entry.date === day) ?? {})}/><AttendanceValue {...(workdayLogs.find((entry) => entry.person === 'shirin' && entry.date === day) ?? {})}/></div>)}</div></section>
 
   </section>
 }
