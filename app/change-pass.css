@@ -245,6 +245,8 @@
 .logo-main span{font-size:38px;line-height:1}
 .logo-by{display:flex;align-items:center;gap:3px;padding-left:49px;color:#bdb9b2;font-size:13px;font-weight:800}
 .logo-by img{display:block;width:76px;height:25px;object-fit:cover;object-position:center;filter:none}
+.avatar img{border-radius:inherit}
+.app-version{display:block;margin-top:7px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.08em}
 
 .review-content-breakdown .content-person:first-child{background:var(--sky)}
 .review-content-breakdown .content-person:last-child{background:var(--lilac)}

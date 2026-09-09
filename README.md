@@ -15,4 +15,6 @@ The mock seed in `lib/mock/data.ts` is intentionally empty for a clean workspace
 
 The migrations are in `supabase/migrations/`; run them in filename order. They enable RLS and add the live tables to Supabase Realtime when the managed `supabase_realtime` publication is available. Never commit `.env.local` or the service-role key.
 
+The current Camp release is shown in the page header. For each release, bump both `package.json` and `lib/version.ts` using semantic versioning (patch for small fixes, minor for new capabilities).
+
 Before production, add the Supabase URL and keys to the environment (service role on the server only), run the migration, and confirm the two auth users and production redirect URL. Then enter the real balance/as-of date, AED and USD rates, recent transactions, invoices, reimbursements, active sprint/tasks, and calendar blocks. Replace or approve the eight avatar state assets, then smoke-test both accounts in separate browsers for task, finance, calendar, and realtime behaviour. Hosted RLS, foreign-key, realtime, and email-template checks still require access to the live Supabase project.
